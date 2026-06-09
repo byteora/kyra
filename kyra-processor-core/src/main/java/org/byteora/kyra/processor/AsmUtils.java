@@ -1,0 +1,406 @@
+package org.byteora.kyra.processor;
+
+import org.objectweb.asm.Label;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+
+import javax.lang.model.element.Element;
+import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVariable;
+import javax.lang.model.type.WildcardType;
+import javax.lang.model.util.Types;
+import java.util.List;
+
+public final class AsmUtils {
+    private static final String RUNTIME_TYPES = "org/byteora/kyra/core/runtime/RuntimeTypes";
+    private static final String TYPE_DESC = "Ljava/lang/reflect/Type;";
+
+    private AsmUtils() {
+    }
+
+    public static String internalName(String qualifiedName) {
+        return qualifiedName.replace('.', '/');
+    }
+
+    public static String internalName(TypeElement typeElement) {
+        return binaryName(typeElement).replace('.', '/');
+    }
+
+    public static String binaryName(TypeElement typeElement) {
+        StringBuilder name = new StringBuilder(typeElement.getSimpleName());
+        Element enclosing = typeElement.getEnclosingElement();
+        while (enclosing instanceof TypeElement enclosingType) {
+            name.insert(0, enclosingType.getSimpleName() + "$");
+            enclosing = enclosingType.getEnclosingElement();
+        }
+        if (enclosing instanceof PackageElement packageElement && !packageElement.isUnnamed()) {
+            return packageElement.getQualifiedName() + "." + name;
+        }
+        return name.toString();
+    }
+
+    public static String descriptor(TypeMirror typeMirror, Types types) {
+        if (typeMirror == null) {
+            return "Ljava/lang/Object;";
+        }
+        return switch (typeMirror.getKind()) {
+            case BOOLEAN -> "Z";
+            case BYTE -> "B";
+            case SHORT -> "S";
+            case INT -> "I";
+            case LONG -> "J";
+            case CHAR -> "C";
+            case FLOAT -> "F";
+            case DOUBLE -> "D";
+            case VOID -> "V";
+            case ARRAY -> "[" + descriptor(((ArrayType) typeMirror).getComponentType(), types);
+            default -> {
+                TypeMirror erased = types.erasure(typeMirror);
+                if (erased instanceof ArrayType arrayType) {
+                    yield "[" + descriptor(arrayType.getComponentType(), types);
+                }
+                if (erased instanceof DeclaredType declaredType && declaredType.asElement() instanceof TypeElement typeElement) {
+                    yield "L" + internalName(typeElement) + ";";
+                }
+                yield "L" + internalName(erased.toString()) + ";";
+            }
+        };
+    }
+
+    public static String descriptor(String typeName) {
+        return switch (typeName) {
+            case "boolean" -> "Z";
+            case "byte" -> "B";
+            case "short" -> "S";
+            case "int" -> "I";
+            case "long" -> "J";
+            case "char" -> "C";
+            case "float" -> "F";
+            case "double" -> "D";
+            case "void" -> "V";
+            default -> {
+                if (typeName.endsWith("[]")) {
+                    yield "[" + descriptor(typeName.substring(0, typeName.length() - 2));
+                }
+                String rawTypeName = typeName;
+                int genericStart = rawTypeName.indexOf('<');
+                if (genericStart >= 0) {
+                    rawTypeName = rawTypeName.substring(0, genericStart);
+                }
+                yield "L" + internalName(rawTypeName) + ";";
+            }
+        };
+    }
+
+    public static String methodDescriptor(TypeMirror returnType, List<? extends TypeMirror> parameterTypes, Types types) {
+        StringBuilder builder = new StringBuilder("(");
+        for (TypeMirror parameterType : parameterTypes) {
+            builder.append(descriptor(parameterType, types));
+        }
+        builder.append(')').append(descriptor(returnType, types));
+        return builder.toString();
+    }
+
+    public static Type asmType(TypeMirror typeMirror, Types types) {
+        return Type.getType(descriptor(typeMirror, types));
+    }
+
+    public static void pushInt(MethodVisitor mv, int value) {
+        switch (value) {
+            case -1 -> mv.visitInsn(Opcodes.ICONST_M1);
+            case 0 -> mv.visitInsn(Opcodes.ICONST_0);
+            case 1 -> mv.visitInsn(Opcodes.ICONST_1);
+            case 2 -> mv.visitInsn(Opcodes.ICONST_2);
+            case 3 -> mv.visitInsn(Opcodes.ICONST_3);
+            case 4 -> mv.visitInsn(Opcodes.ICONST_4);
+            case 5 -> mv.visitInsn(Opcodes.ICONST_5);
+            default -> {
+                if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {
+                    mv.visitIntInsn(Opcodes.BIPUSH, value);
+                } else if (value >= Short.MIN_VALUE && value <= Short.MAX_VALUE) {
+                    mv.visitIntInsn(Opcodes.SIPUSH, value);
+                } else {
+                    mv.visitLdcInsn(value);
+                }
+            }
+        }
+    }
+
+    public static void pushStringArray(MethodVisitor mv, List<String> values) {
+        pushInt(mv, values.size());
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/String");
+        for (int i = 0; i < values.size(); i++) {
+            mv.visitInsn(Opcodes.DUP);
+            pushInt(mv, i);
+            mv.visitLdcInsn(values.get(i));
+            mv.visitInsn(Opcodes.AASTORE);
+        }
+    }
+
+    public static void pushClassArray(MethodVisitor mv, List<? extends TypeMirror> typesList, Types types) {
+        pushInt(mv, typesList.size());
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Class");
+        for (int i = 0; i < typesList.size(); i++) {
+            mv.visitInsn(Opcodes.DUP);
+            pushInt(mv, i);
+            pushClassLiteral(mv, typesList.get(i), types);
+            mv.visitInsn(Opcodes.AASTORE);
+        }
+    }
+
+    public static void pushClassLiteral(MethodVisitor mv, TypeMirror typeMirror, Types types) {
+        TypeMirror erased = types.erasure(typeMirror);
+        if (erased.getKind().isPrimitive()) {
+            switch (erased.getKind()) {
+                case BOOLEAN -> mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Boolean", "TYPE", "Ljava/lang/Class;");
+                case BYTE -> mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Byte", "TYPE", "Ljava/lang/Class;");
+                case SHORT -> mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Short", "TYPE", "Ljava/lang/Class;");
+                case INT -> mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Integer", "TYPE", "Ljava/lang/Class;");
+                case LONG -> mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Long", "TYPE", "Ljava/lang/Class;");
+                case CHAR -> mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Character", "TYPE", "Ljava/lang/Class;");
+                case FLOAT -> mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Float", "TYPE", "Ljava/lang/Class;");
+                case DOUBLE -> mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Double", "TYPE", "Ljava/lang/Class;");
+                default -> throw new IllegalArgumentException("Unsupported primitive type: " + erased);
+            }
+            return;
+        }
+        mv.visitLdcInsn(Type.getType(descriptor(erased, types)));
+    }
+
+    public static void pushTypeLiteral(MethodVisitor mv, TypeMirror typeMirror, Types types) {
+        if (typeMirror == null || typeMirror.getKind() == TypeKind.NONE) {
+            mv.visitInsn(Opcodes.ACONST_NULL);
+            return;
+        }
+        switch (typeMirror.getKind()) {
+            case BOOLEAN, BYTE, SHORT, INT, LONG, CHAR, FLOAT, DOUBLE -> pushClassLiteral(mv, typeMirror, types);
+            case ARRAY -> pushArrayTypeLiteral(mv, (ArrayType) typeMirror, types);
+            case DECLARED -> pushDeclaredTypeLiteral(mv, (DeclaredType) typeMirror, types);
+            case TYPEVAR -> pushTypeVariableLiteral(mv, (TypeVariable) typeMirror, types);
+            case WILDCARD -> pushWildcardTypeLiteral(mv, (WildcardType) typeMirror, types);
+            default -> pushClassLiteral(mv, typeMirror, types);
+        }
+    }
+
+    private static void pushArrayTypeLiteral(MethodVisitor mv, ArrayType arrayType, Types types) {
+        TypeMirror componentType = arrayType.getComponentType();
+        if (isReifiable(componentType)) {
+            pushClassLiteral(mv, arrayType, types);
+            return;
+        }
+        pushTypeLiteral(mv, componentType, types);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, RUNTIME_TYPES, "array", "(" + TYPE_DESC + ")" + TYPE_DESC, false);
+    }
+
+    private static void pushDeclaredTypeLiteral(MethodVisitor mv, DeclaredType declaredType, Types types) {
+        if (declaredType.getTypeArguments().isEmpty()) {
+            pushClassLiteral(mv, declaredType, types);
+            return;
+        }
+        pushClassLiteral(mv, declaredType, types);
+        TypeMirror ownerType = declaredType.getEnclosingType();
+        if (ownerType == null || ownerType.getKind() == TypeKind.NONE) {
+            mv.visitInsn(Opcodes.ACONST_NULL);
+        } else {
+            pushTypeLiteral(mv, ownerType, types);
+        }
+        pushTypeArray(mv, declaredType.getTypeArguments(), types);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, RUNTIME_TYPES, "parameterized", "(Ljava/lang/Class;" + TYPE_DESC + "[" + TYPE_DESC + ")" + TYPE_DESC, false);
+    }
+
+    private static void pushTypeVariableLiteral(MethodVisitor mv, TypeVariable typeVariable, Types types) {
+        mv.visitLdcInsn(typeVariable.asElement().getSimpleName().toString());
+        TypeMirror upperBound = typeVariable.getUpperBound();
+        if (upperBound == null || upperBound.getKind() == TypeKind.NULL || upperBound.getKind() == TypeKind.NONE) {
+            pushObjectTypeArray(mv);
+        } else {
+            pushTypeArray(mv, List.of(upperBound), types);
+        }
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, RUNTIME_TYPES, "typeVariable", "(Ljava/lang/String;[" + TYPE_DESC + ")" + TYPE_DESC, false);
+    }
+
+    private static void pushWildcardTypeLiteral(MethodVisitor mv, WildcardType wildcardType, Types types) {
+        TypeMirror extendsBound = wildcardType.getExtendsBound();
+        TypeMirror superBound = wildcardType.getSuperBound();
+        if (extendsBound == null) {
+            pushObjectTypeArray(mv);
+        } else {
+            pushTypeArray(mv, List.of(extendsBound), types);
+        }
+        if (superBound == null) {
+            pushTypeArray(mv, List.of(), types);
+        } else {
+            pushTypeArray(mv, List.of(superBound), types);
+        }
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, RUNTIME_TYPES, "wildcard", "([" + TYPE_DESC + "[" + TYPE_DESC + ")" + TYPE_DESC, false);
+    }
+
+    private static void pushObjectTypeArray(MethodVisitor mv) {
+        pushInt(mv, 1);
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/reflect/Type");
+        mv.visitInsn(Opcodes.DUP);
+        pushInt(mv, 0);
+        mv.visitLdcInsn(Type.getType("Ljava/lang/Object;"));
+        mv.visitInsn(Opcodes.AASTORE);
+    }
+
+    private static void pushTypeArray(MethodVisitor mv, List<? extends TypeMirror> typeMirrors, Types types) {
+        pushInt(mv, typeMirrors.size());
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/reflect/Type");
+        for (int i = 0; i < typeMirrors.size(); i++) {
+            mv.visitInsn(Opcodes.DUP);
+            pushInt(mv, i);
+            pushTypeLiteral(mv, typeMirrors.get(i), types);
+            mv.visitInsn(Opcodes.AASTORE);
+        }
+    }
+
+    private static boolean isReifiable(TypeMirror typeMirror) {
+        return switch (typeMirror.getKind()) {
+            case BOOLEAN, BYTE, SHORT, INT, LONG, CHAR, FLOAT, DOUBLE -> true;
+            case ARRAY -> isReifiable(((ArrayType) typeMirror).getComponentType());
+            case DECLARED -> ((DeclaredType) typeMirror).getTypeArguments().isEmpty();
+            default -> false;
+        };
+    }
+
+    public static void castFromObject(MethodVisitor mv, TypeMirror typeMirror, Types types) {
+        TypeMirror erased = types.erasure(typeMirror);
+        switch (erased.getKind()) {
+            case BOOLEAN -> {
+                mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Boolean");
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z", false);
+            }
+            case BYTE -> {
+                mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Byte");
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Byte", "byteValue", "()B", false);
+            }
+            case SHORT -> {
+                mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Short");
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Short", "shortValue", "()S", false);
+            }
+            case INT -> {
+                mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Integer");
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Integer", "intValue", "()I", false);
+            }
+            case LONG -> {
+                mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Long");
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Long", "longValue", "()J", false);
+            }
+            case CHAR -> {
+                mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Character");
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Character", "charValue", "()C", false);
+            }
+            case FLOAT -> {
+                mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Float");
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Float", "floatValue", "()F", false);
+            }
+            case DOUBLE -> {
+                mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Double");
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Double", "doubleValue", "()D", false);
+            }
+            default -> mv.visitTypeInsn(Opcodes.CHECKCAST, Type.getType(descriptor(erased, types)).getInternalName());
+        }
+    }
+
+    public static void box(MethodVisitor mv, TypeMirror typeMirror) {
+        switch (typeMirror.getKind()) {
+            case BOOLEAN -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Z)Ljava/lang/Boolean;", false);
+            case BYTE -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Byte", "valueOf", "(B)Ljava/lang/Byte;", false);
+            case SHORT -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Short", "valueOf", "(S)Ljava/lang/Short;", false);
+            case INT -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Integer", "valueOf", "(I)Ljava/lang/Integer;", false);
+            case LONG -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Long", "valueOf", "(J)Ljava/lang/Long;", false);
+            case CHAR -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Character", "valueOf", "(C)Ljava/lang/Character;", false);
+            case FLOAT -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Float", "valueOf", "(F)Ljava/lang/Float;", false);
+            case DOUBLE -> mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Double", "valueOf", "(D)Ljava/lang/Double;", false);
+            default -> {
+            }
+        }
+    }
+
+    public static int loadOpcode(TypeMirror typeMirror) {
+        return switch (typeMirror.getKind()) {
+            case BOOLEAN, BYTE, SHORT, INT, CHAR -> Opcodes.ILOAD;
+            case LONG -> Opcodes.LLOAD;
+            case FLOAT -> Opcodes.FLOAD;
+            case DOUBLE -> Opcodes.DLOAD;
+            default -> Opcodes.ALOAD;
+        };
+    }
+
+    public static int returnOpcode(TypeMirror typeMirror) {
+        return switch (typeMirror.getKind()) {
+            case VOID -> Opcodes.RETURN;
+            case BOOLEAN, BYTE, SHORT, INT, CHAR -> Opcodes.IRETURN;
+            case LONG -> Opcodes.LRETURN;
+            case FLOAT -> Opcodes.FRETURN;
+            case DOUBLE -> Opcodes.DRETURN;
+            default -> Opcodes.ARETURN;
+        };
+    }
+
+    public static int slotSize(TypeMirror typeMirror) {
+        return switch (typeMirror.getKind()) {
+            case LONG, DOUBLE -> 2;
+            default -> 1;
+        };
+    }
+
+    public static void emitStringEqualsDispatch(MethodVisitor mv, int stringLocal, List<String> cases, java.util.function.IntConsumer caseBody, Runnable defaultBody) {
+        if (cases.isEmpty()) {
+            defaultBody.run();
+            return;
+        }
+        java.util.Map<Integer, java.util.List<Integer>> caseIndexesByHash = new java.util.TreeMap<>();
+        for (int i = 0; i < cases.size(); i++) {
+            caseIndexesByHash.computeIfAbsent(cases.get(i).hashCode(), ignored -> new java.util.ArrayList<>()).add(i);
+        }
+        int bucketCount = caseIndexesByHash.size();
+        int[] hashes = new int[bucketCount];
+        Label[] bucketLabels = new Label[bucketCount];
+        int cursor = 0;
+        for (Integer hash : caseIndexesByHash.keySet()) {
+            hashes[cursor] = hash;
+            bucketLabels[cursor] = new Label();
+            cursor++;
+        }
+        Label defaultLabel = new Label();
+        Label endLabel = new Label();
+        Label[] caseLabels = new Label[cases.size()];
+        for (int i = 0; i < cases.size(); i++) {
+            caseLabels[i] = new Label();
+        }
+
+        mv.visitVarInsn(Opcodes.ALOAD, stringLocal);
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "hashCode", "()I", false);
+        mv.visitLookupSwitchInsn(defaultLabel, hashes, bucketLabels);
+
+        cursor = 0;
+        for (java.util.Map.Entry<Integer, java.util.List<Integer>> entry : caseIndexesByHash.entrySet()) {
+            mv.visitLabel(bucketLabels[cursor++]);
+            for (Integer caseIndex : entry.getValue()) {
+                mv.visitVarInsn(Opcodes.ALOAD, stringLocal);
+                mv.visitLdcInsn(cases.get(caseIndex));
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/String", "equals", "(Ljava/lang/Object;)Z", false);
+                mv.visitJumpInsn(Opcodes.IFNE, caseLabels[caseIndex]);
+            }
+            mv.visitJumpInsn(Opcodes.GOTO, defaultLabel);
+        }
+
+        for (int i = 0; i < cases.size(); i++) {
+            mv.visitLabel(caseLabels[i]);
+            caseBody.accept(i);
+            mv.visitJumpInsn(Opcodes.GOTO, endLabel);
+        }
+
+        mv.visitLabel(defaultLabel);
+        defaultBody.run();
+        mv.visitLabel(endLabel);
+    }
+}

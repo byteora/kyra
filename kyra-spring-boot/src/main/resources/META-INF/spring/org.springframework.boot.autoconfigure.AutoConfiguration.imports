@@ -1,0 +1,2 @@
+org.byteora.kyra.spring.boot.autoconfigure.KyraAutoConfiguration
+org.byteora.kyra.spring.boot.autoconfigure.KyraJsonWebAutoConfiguration

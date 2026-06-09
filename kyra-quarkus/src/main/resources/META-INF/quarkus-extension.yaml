@@ -1,0 +1,11 @@
+name: "Kyra Quarkus"
+artifact: "${project.groupId}:${project.artifactId}:${project.version}"
+metadata:
+  short-name: "kyra-quarkus"
+  keywords:
+    - "kyra"
+    - "sql"
+    - "jdbc"
+    - "quarkus"
+  categories:
+    - "data"
