@@ -1,5 +1,7 @@
 package org.byteora.kyra.json;
 
+import org.byteora.kyra.core.EnumSupport;
+import org.byteora.kyra.core.IEnum;
 import org.byteora.kyra.core.runtime.AnnotationMeta;
 import org.byteora.kyra.core.runtime.ClassInfo;
 import org.byteora.kyra.core.runtime.FieldInfo;
@@ -17,7 +19,6 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.reflect.Array;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.math.BigDecimal;
@@ -88,8 +89,8 @@ final class DefaultJsonMapper implements JsonMapper {
             handler.write(new WriterContext(generator, variables), value);
             return;
         }
-        if (value instanceof JsonEnum<?, ?> jsonEnum) {
-            writeValue(generator, jsonEnum.getValue(), Object.class, Map.of());
+        if (value instanceof IEnum<?, ?> iEnum) {
+            writeValue(generator, iEnum.getValue(), Object.class, Map.of());
             return;
         }
         Class<?> rawType = Types.rawType(resolvedType);
@@ -230,8 +231,8 @@ final class DefaultJsonMapper implements JsonMapper {
         if (rawType == Object.class) {
             return readUntyped(parser);
         }
-        if (rawType.isEnum() && JsonEnum.class.isAssignableFrom(rawType)) {
-            return readJsonEnum(parser, rawType, variables);
+        if (EnumSupport.isIEnum(rawType)) {
+            return readIEnum(parser, rawType, variables);
         }
         var val =readSimpleValue(parser, rawType);
         if (val != null) {
@@ -318,27 +319,13 @@ final class DefaultJsonMapper implements JsonMapper {
     }
 
     @SuppressWarnings("unchecked")
-    private Object readJsonEnum(JsonParser parser, Class<?> rawType, Map<TypeVariable<?>, Type> variables) throws IOException {
-        Object[] constants = rawType.getEnumConstants();
-        if (constants == null || constants.length == 0) {
-            throw new JsonException("Enum " + rawType.getName() + " has no constants to parse a JSON value into");
+    private Object readIEnum(JsonParser parser, Class<?> rawType, Map<TypeVariable<?>, Type> variables) throws IOException {
+        Object encoded = readValue(parser, EnumSupport.valueType(rawType), variables);
+        try {
+            return EnumSupport.parse(rawType.asSubclass(Enum.class), encoded);
+        } catch (IllegalArgumentException ex) {
+            throw new JsonException(ex.getMessage(), ex);
         }
-        Object encoded = readValue(parser, enumValueType(rawType), variables);
-        Object result = ((JsonEnum<Object, Object>) constants[0]).parse(encoded);
-        if (result == null) {
-            throw new JsonException("No " + rawType.getSimpleName() + " constant matches JSON value: " + encoded);
-        }
-        return result;
-    }
-
-    private Type enumValueType(Class<?> enumClass) {
-        for (Type genericInterface : enumClass.getGenericInterfaces()) {
-            if (genericInterface instanceof ParameterizedType parameterizedType
-                    && parameterizedType.getRawType() == JsonEnum.class) {
-                return parameterizedType.getActualTypeArguments()[1];
-            }
-        }
-        return Object.class;
     }
 
     private Object readUntyped(JsonParser parser) {

@@ -1,23 +1,11 @@
 package org.byteora.kyra.orm.runtime;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.sql.Date;
+import org.byteora.kyra.core.EnumSupport;
+import org.byteora.kyra.core.IEnum;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Time;
-import java.sql.Timestamp;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.OffsetTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.UUID;
 
 public final class TypeConverter {
 
@@ -58,6 +46,9 @@ public final class TypeConverter {
         if (value == null) {
             return null;
         }
+        if (value instanceof IEnum<?, ?>) {
+            return EnumSupport.toValue(value);
+        }
         if (customConverters == null || customConverters.length == 0) {
             return value;
         }
@@ -79,8 +70,16 @@ public final class TypeConverter {
                 }
             }
         }
+        if (EnumSupport.isIEnum(targetType)) {
+            Object columnValue = resultSet.getObject(index, (Class<?>) EnumSupport.valueType(targetType));
+            if (columnValue == null) {
+                return null;
+            }
+            return (T) EnumSupport.parse(targetType.asSubclass(Enum.class), columnValue);
+        }
         return resultSet.getObject(index, targetType);
     }
+
     private SqlExecutorException conversionFailure(Object value, Class<?> targetType, String columnName, String fieldName, RuntimeException cause) {
         String sourceType = value == null ? "null" : value.getClass().getName();
         StringBuilder message = new StringBuilder("Failed to convert result");

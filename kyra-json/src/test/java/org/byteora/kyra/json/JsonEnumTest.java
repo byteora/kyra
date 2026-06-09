@@ -1,5 +1,6 @@
 package org.byteora.kyra.json;
 
+import org.byteora.kyra.core.IEnum;
 import org.byteora.kyra.core.annotation.Reflect;
 import org.junit.jupiter.api.Test;
 
@@ -9,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class JsonEnumTest {
 
-    public enum Status implements JsonEnum<Status, Integer> {
+    public enum Status implements IEnum<Status, Integer> {
         ON(1), OFF(0);
 
         private final int code;
@@ -34,7 +35,7 @@ public class JsonEnumTest {
         }
     }
 
-    public enum Level implements JsonEnum<Level, String> {
+    public enum Level implements IEnum<Level, String> {
         LOW("low"), HIGH("high");
 
         private final String tag;
