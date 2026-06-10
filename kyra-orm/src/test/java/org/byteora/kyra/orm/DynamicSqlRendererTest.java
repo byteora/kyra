@@ -6,9 +6,9 @@ import org.byteora.kyra.orm.dynamic.DynamicSqlRenderer;
 import org.byteora.kyra.orm.dynamic.MapperParameters;
 import org.byteora.kyra.orm.dynamic.SqlNodes;
 import org.byteora.kyra.orm.runtime.BoundSql;
-import org.byteora.kyra.core.runtime.Reflector;
+import org.byteora.kyra.core.annotation.Reflect;
+import org.byteora.kyra.core.runtime.GeneratedReflectors;
 import org.byteora.kyra.core.runtime.ReflectorRegistry;
-import org.byteora.kyra.core.runtime.MethodInfo;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -18,11 +18,11 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class DynamicSqlRendererTest {
+public class DynamicSqlRendererTest {
     @BeforeAll
     static void installReflector() {
         ReflectorRegistry.clear();
-        ReflectorRegistry.register(User.class, new UserReflector());
+        ReflectorRegistry.register(User.class, GeneratedReflectors.load(User.class));
     }
 
     @Test
@@ -164,20 +164,21 @@ class DynamicSqlRendererTest {
         assertArrayEquals(new Object[]{"%Keanu%"}, DynamicSqlArgumentResolver.resolve(bindSql));
     }
 
-    static final class User {
+    @Reflect
+    public static final class User {
         private final String name;
         private final int age;
 
-        User(String name, int age) {
+        public User(String name, int age) {
             this.name = name;
             this.age = age;
         }
 
-        String getName() {
+        public String getName() {
             return name;
         }
 
-        int getAge() {
+        public int getAge() {
             return age;
         }
     }
@@ -185,81 +186,5 @@ class DynamicSqlRendererTest {
     enum UserStatus {
         INACTIVE,
         ACTIVE
-    }
-
-    static final class UserReflector implements Reflector<User> {
-        @Override
-        public User newInstance() {
-            return new User(null, 0);
-        }
-
-        @Override
-        public org.byteora.kyra.core.runtime.ClassInfo getClassInfo() {
-            return null;
-        }
-
-        @Override
-        public Object invoke(User target, String method, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Object invoke(User target, int index, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(User target, String property, Object value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(User target, int index, Object value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Object get(User target, String property) {
-            return switch (property) {
-                case "name" -> target.getName();
-                case "age" -> target.getAge();
-                default -> throw new IllegalArgumentException(property);
-            };
-        }
-
-        @Override
-        public Object get(User target, int index) {
-            return get(target, getFields()[index]);
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"name", "age"};
-        }
-
-        @Override
-        public org.byteora.kyra.core.runtime.FieldInfo getField(String field) {
-            return null;
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public org.byteora.kyra.core.runtime.FieldInfo getField(int index) {
-            return null;
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
-        }
     }
 }

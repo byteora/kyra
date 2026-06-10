@@ -36,9 +36,30 @@ final class Types {
     }
 
     static Map<TypeVariable<?>, Type> typeVariables(Type type) {
+        // Fast path: a plain class with no type parameters and no parameterized supertype binds
+        // nothing, so we can skip allocating (and populating) a map entirely.
+        if (type instanceof Class<?> clazz && clazz.getTypeParameters().length == 0
+                && !hasParameterizedSupertype(clazz)) {
+            return Map.of();
+        }
         Map<TypeVariable<?>, Type> variables = new HashMap<>();
         collectTypeVariables(type, variables);
-        return variables;
+        return variables.isEmpty() ? Map.of() : variables;
+    }
+
+    private static boolean hasParameterizedSupertype(Class<?> clazz) {
+        Type supertype = clazz.getGenericSuperclass();
+        while (supertype != null) {
+            if (supertype instanceof ParameterizedType) {
+                return true;
+            }
+            Class<?> raw = rawType(supertype);
+            if (raw == null || raw == Object.class) {
+                break;
+            }
+            supertype = raw.getGenericSuperclass();
+        }
+        return false;
     }
 
     private static void collectTypeVariables(Type type, Map<TypeVariable<?>, Type> variables) {

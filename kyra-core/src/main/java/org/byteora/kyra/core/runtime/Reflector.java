@@ -45,6 +45,74 @@ public interface Reflector<T> {
         return get(target, index);
     }
 
+    default void setBoolean(T target, int index, boolean value) {
+        throw unknownPrimitiveProperty("boolean");
+    }
+
+    default void setByte(T target, int index, byte value) {
+        throw unknownPrimitiveProperty("byte");
+    }
+
+    default void setShort(T target, int index, short value) {
+        throw unknownPrimitiveProperty("short");
+    }
+
+    default void setInt(T target, int index, int value) {
+        throw unknownPrimitiveProperty("int");
+    }
+
+    default void setLong(T target, int index, long value) {
+        throw unknownPrimitiveProperty("long");
+    }
+
+    default void setChar(T target, int index, char value) {
+        throw unknownPrimitiveProperty("char");
+    }
+
+    default void setFloat(T target, int index, float value) {
+        throw unknownPrimitiveProperty("float");
+    }
+
+    default void setDouble(T target, int index, double value) {
+        throw unknownPrimitiveProperty("double");
+    }
+
+    default boolean getBoolean(T target, int index) {
+        throw unknownPrimitiveProperty("boolean");
+    }
+
+    default byte getByte(T target, int index) {
+        throw unknownPrimitiveProperty("byte");
+    }
+
+    default short getShort(T target, int index) {
+        throw unknownPrimitiveProperty("short");
+    }
+
+    default int getInt(T target, int index) {
+        throw unknownPrimitiveProperty("int");
+    }
+
+    default long getLong(T target, int index) {
+        throw unknownPrimitiveProperty("long");
+    }
+
+    default char getChar(T target, int index) {
+        throw unknownPrimitiveProperty("char");
+    }
+
+    default float getFloat(T target, int index) {
+        throw unknownPrimitiveProperty("float");
+    }
+
+    default double getDouble(T target, int index) {
+        throw unknownPrimitiveProperty("double");
+    }
+
+    private static IllegalArgumentException unknownPrimitiveProperty(String kind) {
+        return new IllegalArgumentException("Unknown property index or not a " + kind);
+    }
+
     String[] getFields();
 
     default boolean hasField(String field) {

@@ -7,6 +7,8 @@ import org.byteora.kyra.orm.query.QueryDefinition;
 import org.byteora.kyra.orm.query.Tables;
 import org.byteora.kyra.orm.query.UpdateDefinition;
 import org.byteora.kyra.orm.query.WhereDefinition;
+import org.byteora.kyra.core.annotation.Reflect;
+import org.byteora.kyra.core.runtime.GeneratedReflectors;
 import org.byteora.kyra.core.runtime.*;
 import org.byteora.kyra.orm.runtime.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class BaseMapperImplIdStrategyTest {
+public class BaseMapperImplIdStrategyTest {
     @BeforeEach
     void setUp() {
         ReflectorRegistry.clear();
@@ -31,11 +33,11 @@ class BaseMapperImplIdStrategyTest {
         Tables.register(CustomEntity.class, CustomTable.CUSTOMS);
         Tables.register(SessionCustomEntity.class, SessionCustomTable.SESSION_CUSTOMS);
         Tables.register(AutoIdEntity.class, AutoIdTable.AUTO_IDS);
-        ReflectorRegistry.register(ManualIdEntity.class, new ManualIdReflector());
-        ReflectorRegistry.register(UuidEntity.class, new UuidReflector());
-        ReflectorRegistry.register(CustomEntity.class, new CustomReflector());
-        ReflectorRegistry.register(SessionCustomEntity.class, new SessionCustomReflector());
-        ReflectorRegistry.register(AutoIdEntity.class, new AutoIdReflector());
+        ReflectorRegistry.register(ManualIdEntity.class, GeneratedReflectors.load(ManualIdEntity.class));
+        ReflectorRegistry.register(UuidEntity.class, GeneratedReflectors.load(UuidEntity.class));
+        ReflectorRegistry.register(CustomEntity.class, GeneratedReflectors.load(CustomEntity.class));
+        ReflectorRegistry.register(SessionCustomEntity.class, GeneratedReflectors.load(SessionCustomEntity.class));
+        ReflectorRegistry.register(AutoIdEntity.class, GeneratedReflectors.load(AutoIdEntity.class));
     }
 
     @Test
@@ -255,11 +257,12 @@ class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class AutoIdEntity {
+    @Reflect
+    public static final class AutoIdEntity {
         private Long id;
         private String name;
 
-        private AutoIdEntity(Long id, String name) {
+        public AutoIdEntity(Long id, String name) {
             this.id = id;
             this.name = name;
         }
@@ -277,11 +280,12 @@ class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class ManualIdEntity {
+    @Reflect
+    public static final class ManualIdEntity {
         private Long id;
         private String name;
 
-        private ManualIdEntity(Long id, String name) {
+        public ManualIdEntity(Long id, String name) {
             this.id = id;
             this.name = name;
         }
@@ -299,11 +303,12 @@ class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class UuidEntity {
+    @Reflect
+    public static final class UuidEntity {
         private String id;
         private String name;
 
-        private UuidEntity(String id, String name) {
+        public UuidEntity(String id, String name) {
             this.id = id;
             this.name = name;
         }
@@ -321,11 +326,12 @@ class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class CustomEntity {
+    @Reflect
+    public static final class CustomEntity {
         private Long id;
         private String name;
 
-        private CustomEntity(Long id, String name) {
+        public CustomEntity(Long id, String name) {
             this.id = id;
             this.name = name;
         }
@@ -343,11 +349,12 @@ class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class SessionCustomEntity {
+    @Reflect
+    public static final class SessionCustomEntity {
         private Long id;
         private String name;
 
-        private SessionCustomEntity(Long id, String name) {
+        public SessionCustomEntity(Long id, String name) {
             this.id = id;
             this.name = name;
         }
@@ -534,295 +541,4 @@ class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class ManualIdReflector implements Reflector<ManualIdEntity> {
-        @Override
-        public ManualIdEntity newInstance() {
-            return new ManualIdEntity(null, null);
-        }
-
-        @Override
-        public ClassInfo getClassInfo() {
-            return null;
-        }
-
-        @Override
-        public Object invoke(ManualIdEntity target, int index, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(ManualIdEntity target, int index, Object value) {
-            switch (index) {
-                case 0 -> target.setId((Long) value);
-                default -> {
-                }
-            }
-        }
-
-        @Override
-        public Object get(ManualIdEntity target, int index) {
-            return switch (index) {
-                case 0 -> target.getId();
-                case 1 -> target.getName();
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"id", "name"};
-        }
-
-        @Override
-        public FieldInfo getField(int index) {
-            return null;
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
-        }
-    }
-
-    private static final class UuidReflector implements Reflector<UuidEntity> {
-        @Override
-        public UuidEntity newInstance() {
-            return new UuidEntity(null, null);
-        }
-
-        @Override
-        public ClassInfo getClassInfo() {
-            return null;
-        }
-
-        @Override
-        public Object invoke(UuidEntity target, int index, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(UuidEntity target, int index, Object value) {
-            if (index == 0) {
-                target.setId((String) value);
-            }
-        }
-
-        @Override
-        public Object get(UuidEntity target, int index) {
-            return switch (index) {
-                case 0 -> target.getId();
-                case 1 -> target.getName();
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"id", "name"};
-        }
-
-        @Override
-        public FieldInfo getField(int index) {
-            return null;
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
-        }
-    }
-
-    private static final class CustomReflector implements Reflector<CustomEntity> {
-        @Override
-        public CustomEntity newInstance() {
-            return new CustomEntity(null, null);
-        }
-
-        @Override
-        public ClassInfo getClassInfo() {
-            return null;
-        }
-
-        @Override
-        public Object invoke(CustomEntity target, int index, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(CustomEntity target, int index, Object value) {
-            if (index == 0) {
-                target.setId((Long) value);
-            }
-        }
-
-        @Override
-        public Object get(CustomEntity target, int index) {
-            return switch (index) {
-                case 0 -> target.getId();
-                case 1 -> target.getName();
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"id", "name"};
-        }
-
-        @Override
-        public FieldInfo getField(int index) {
-            return null;
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
-        }
-    }
-
-    private static final class SessionCustomReflector implements Reflector<SessionCustomEntity> {
-        @Override
-        public SessionCustomEntity newInstance() {
-            return new SessionCustomEntity(null, null);
-        }
-
-        @Override
-        public ClassInfo getClassInfo() {
-            return null;
-        }
-
-        @Override
-        public Object invoke(SessionCustomEntity target, int index, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(SessionCustomEntity target, int index, Object value) {
-            if (index == 0) {
-                target.setId((Long) value);
-            }
-        }
-
-        @Override
-        public Object get(SessionCustomEntity target, int index) {
-            return switch (index) {
-                case 0 -> target.getId();
-                case 1 -> target.getName();
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"id", "name"};
-        }
-
-        @Override
-        public FieldInfo getField(int index) {
-            return null;
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
-        }
-    }
-
-    private static final class AutoIdReflector implements Reflector<AutoIdEntity> {
-        @Override
-        public AutoIdEntity newInstance() {
-            return new AutoIdEntity(null, null);
-        }
-
-        @Override
-        public ClassInfo getClassInfo() {
-            return null;
-        }
-
-        @Override
-        public Object invoke(AutoIdEntity target, int index, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(AutoIdEntity target, int index, Object value) {
-            if (index == 0) {
-                target.setId((Long) value);
-            }
-        }
-
-        @Override
-        public Object get(AutoIdEntity target, int index) {
-            return switch (index) {
-                case 0 -> target.getId();
-                case 1 -> target.getName();
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"id", "name"};
-        }
-
-        @Override
-        public FieldInfo getField(int index) {
-            return index == 0 ? new FieldInfo("id", Long.class, 2, null, new org.byteora.kyra.core.runtime.AnnotationMeta[0]) : null;
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
-        }
-    }
 }

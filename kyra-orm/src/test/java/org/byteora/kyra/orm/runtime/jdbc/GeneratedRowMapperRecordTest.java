@@ -1,8 +1,9 @@
 package org.byteora.kyra.orm.runtime.jdbc;
 
-import org.byteora.kyra.core.runtime.*;
+import org.byteora.kyra.core.annotation.Alias;
+import org.byteora.kyra.core.annotation.Reflect;
+import org.byteora.kyra.core.runtime.GeneratedReflectors;
 import org.byteora.kyra.orm.runtime.TypeConverter;
-import org.byteora.kyra.orm.runtime.jdbc.GeneratedRowMapper;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
@@ -11,10 +12,10 @@ import java.sql.ResultSetMetaData;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class GeneratedRowMapperRecordTest {
+public class GeneratedRowMapperRecordTest {
     @Test
     void shouldInstantiateRecordWithoutSetterAccess() throws Exception {
-        GeneratedRowMapper<PairRecord> rowMapper = new GeneratedRowMapper<>(PairRecord.class, new PairRecordReflector(), new TypeConverter());
+        GeneratedRowMapper<PairRecord> rowMapper = new GeneratedRowMapper<>(PairRecord.class, GeneratedReflectors.load(PairRecord.class), new TypeConverter());
 
         PairRecord pair = rowMapper.mapRow(resultSet(new String[]{"key", "value"}, new Object[]{"day1", 12L}));
 
@@ -24,7 +25,7 @@ class GeneratedRowMapperRecordTest {
 
     @Test
     void shouldInstantiatePojoWithConstructorAndSetterMix() throws Exception {
-        GeneratedRowMapper<HybridUser> rowMapper = new GeneratedRowMapper<>(HybridUser.class, new HybridUserReflector(), new TypeConverter());
+        GeneratedRowMapper<HybridUser> rowMapper = new GeneratedRowMapper<>(HybridUser.class, GeneratedReflectors.load(HybridUser.class), new TypeConverter());
 
         HybridUser user = rowMapper.mapRow(resultSet(new String[]{"id", "age", "display_name"}, new Object[]{"u1", 18, "neo"}));
 
@@ -35,7 +36,7 @@ class GeneratedRowMapperRecordTest {
 
     @Test
     void shouldMapSnakeCaseColumnToCamelCaseFieldWithoutAlias() throws Exception {
-        GeneratedRowMapper<PlainUser> rowMapper = new GeneratedRowMapper<>(PlainUser.class, new PlainUserReflector(), new TypeConverter());
+        GeneratedRowMapper<PlainUser> rowMapper = new GeneratedRowMapper<>(PlainUser.class, GeneratedReflectors.load(PlainUser.class), new TypeConverter());
 
         PlainUser user = rowMapper.mapRow(resultSet(new String[]{"user_id", "first_name"}, new Object[]{"42", "ada"}));
 
@@ -45,7 +46,7 @@ class GeneratedRowMapperRecordTest {
 
     @Test
     void shouldMapUppercasedColumnLabelsCaseInsensitively() throws Exception {
-        GeneratedRowMapper<PlainUser> rowMapper = new GeneratedRowMapper<>(PlainUser.class, new PlainUserReflector(), new TypeConverter());
+        GeneratedRowMapper<PlainUser> rowMapper = new GeneratedRowMapper<>(PlainUser.class, GeneratedReflectors.load(PlainUser.class), new TypeConverter());
 
         PlainUser user = rowMapper.mapRow(resultSet(new String[]{"USER_ID", "FIRST_NAME"}, new Object[]{"7", "grace"}));
 
@@ -55,7 +56,7 @@ class GeneratedRowMapperRecordTest {
 
     @Test
     void shouldReuseColumnPlanAcrossRows() throws Exception {
-        GeneratedRowMapper<PlainUser> rowMapper = new GeneratedRowMapper<>(PlainUser.class, new PlainUserReflector(), new TypeConverter());
+        GeneratedRowMapper<PlainUser> rowMapper = new GeneratedRowMapper<>(PlainUser.class, GeneratedReflectors.load(PlainUser.class), new TypeConverter());
         int[] metadataCalls = new int[1];
 
         ResultSet rs = recordingResultSet(new String[]{"user_id", "first_name"}, new Object[]{"1", "alpha"}, metadataCalls);
@@ -117,268 +118,62 @@ class GeneratedRowMapperRecordTest {
         );
     }
 
-    private record PairRecord(String key, Long value) {
+    @Reflect
+    public record PairRecord(String key, Long value) {
     }
 
-    private static final class HybridUser {
+    @Reflect
+    public static final class HybridUser {
         private final String id;
         private Integer age;
+        @Alias("display_name")
         private String displayName;
 
-        private HybridUser(String id) {
+        public HybridUser(String id) {
             this.id = id;
         }
 
-        String getId() {
+        public String getId() {
             return id;
         }
 
-        Integer getAge() {
+        public Integer getAge() {
             return age;
         }
 
-        void setAge(Integer age) {
+        public void setAge(Integer age) {
             this.age = age;
         }
 
-        String getDisplayName() {
+        public String getDisplayName() {
             return displayName;
         }
 
-        void setDisplayName(String displayName) {
+        public void setDisplayName(String displayName) {
             this.displayName = displayName;
         }
     }
 
-    private static final class PairRecordReflector implements Reflector<PairRecord> {
-        private static final AnnotationMeta[] NO_ANNOTATIONS = new AnnotationMeta[0];
-        private static final ParameterInfo[] PARAMS = new ParameterInfo[]{
-                new ParameterInfo("key", String.class, NO_ANNOTATIONS),
-                new ParameterInfo("value", Long.class, NO_ANNOTATIONS)
-        };
-
-        @Override
-        public PairRecord newInstance() {
-            throw new AssertionError("record mapping should not use newInstance");
-        }
-
-        @Override
-        public PairRecord newInstance(Object[] args) {
-            return new PairRecord((String) args[0], (Long) args[1]);
-        }
-
-        @Override
-        public ClassInfo getClassInfo() {
-            return new ClassInfo(PairRecord.class, null, 0, NO_ANNOTATIONS, PARAMS);
-        }
-
-        @Override
-        public Object invoke(PairRecord target, int index, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(PairRecord target, int propertyIndex, Object value) {
-            throw new AssertionError("record mapping should not use indexed set");
-        }
-
-        @Override
-        public Object get(PairRecord target, int index) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"key", "value"};
-        }
-
-        @Override
-        public FieldInfo getField(int index) {
-            return switch (index) {
-                case 0 -> new FieldInfo("key", String.class, 0, null, NO_ANNOTATIONS);
-                case 1 -> new FieldInfo("value", Long.class, 0, null, NO_ANNOTATIONS);
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
-        }
-    }
-
-    private static final class HybridUserReflector implements Reflector<HybridUser> {
-        private static final AnnotationMeta[] NO_ANNOTATIONS = new AnnotationMeta[0];
-        private static final ParameterInfo[] PARAMS = new ParameterInfo[]{
-                new ParameterInfo("id", String.class, NO_ANNOTATIONS)
-        };
-
-        @Override
-        public HybridUser newInstance() {
-            throw new AssertionError("hybrid mapping should use constructor metadata");
-        }
-
-        @Override
-        public HybridUser newInstance(Object[] args) {
-            return new HybridUser((String) args[0]);
-        }
-
-        @Override
-        public ClassInfo getClassInfo() {
-            return new ClassInfo(HybridUser.class, null, 0, NO_ANNOTATIONS, PARAMS);
-        }
-
-        @Override
-        public Object invoke(HybridUser target, int index, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(HybridUser target, int propertyIndex, Object value) {
-            switch (propertyIndex) {
-                case 0 -> throw new AssertionError("constructor-bound property should not be set again");
-                case 1 -> target.setAge((Integer) value);
-                case 2 -> target.setDisplayName((String) value);
-                default -> throw new UnsupportedOperationException(String.valueOf(propertyIndex));
-            }
-        }
-
-        @Override
-        public Object get(HybridUser target, int index) {
-            return switch (index) {
-                case 0 -> target.getId();
-                case 1 -> target.getAge();
-                case 2 -> target.getDisplayName();
-                default -> throw new UnsupportedOperationException(String.valueOf(index));
-            };
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"id", "age", "displayName"};
-        }
-
-        @Override
-        public FieldInfo getField(int index) {
-            return switch (index) {
-                case 0 -> new FieldInfo("id", String.class, 0, null, NO_ANNOTATIONS);
-                case 1 -> new FieldInfo("age", Integer.class, 0, null, NO_ANNOTATIONS);
-                case 2 -> new FieldInfo("displayName", String.class, 0, "display_name", NO_ANNOTATIONS);
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
-        }
-    }
-
     /** Plain POJO that deliberately has no {@code @Alias} annotations so snake↔camel mapping is exercised. */
-    private static final class PlainUser {
+    @Reflect
+    public static final class PlainUser {
         private String userId;
         private String firstName;
 
-        String getUserId() {
+        public String getUserId() {
             return userId;
         }
 
-        void setUserId(String userId) {
+        public void setUserId(String userId) {
             this.userId = userId;
         }
 
-        String getFirstName() {
+        public String getFirstName() {
             return firstName;
         }
 
-        void setFirstName(String firstName) {
+        public void setFirstName(String firstName) {
             this.firstName = firstName;
-        }
-    }
-
-    private static final class PlainUserReflector implements Reflector<PlainUser> {
-        private static final AnnotationMeta[] NO_ANNOTATIONS = new AnnotationMeta[0];
-
-        @Override
-        public PlainUser newInstance() {
-            return new PlainUser();
-        }
-
-        @Override
-        public ClassInfo getClassInfo() {
-            return null;
-        }
-
-        @Override
-        public Object invoke(PlainUser target, int index, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(PlainUser target, int index, Object value) {
-            switch (index) {
-                case 0 -> target.setUserId((String) value);
-                case 1 -> target.setFirstName((String) value);
-                default -> throw new UnsupportedOperationException(String.valueOf(index));
-            }
-        }
-
-        @Override
-        public Object get(PlainUser target, int index) {
-            return switch (index) {
-                case 0 -> target.getUserId();
-                case 1 -> target.getFirstName();
-                default -> throw new UnsupportedOperationException(String.valueOf(index));
-            };
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"userId", "firstName"};
-        }
-
-        @Override
-        public FieldInfo getField(int index) {
-            return switch (index) {
-                case 0 -> new FieldInfo("userId", String.class, 0, null, NO_ANNOTATIONS);
-                case 1 -> new FieldInfo("firstName", String.class, 0, null, NO_ANNOTATIONS);
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
         }
     }
 }

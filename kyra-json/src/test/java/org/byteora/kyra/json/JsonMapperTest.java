@@ -66,6 +66,40 @@ public class JsonMapperTest {
     }
 
     @Test
+    void shouldSerializeToBytesAndStreamMatchingToJson() throws Exception {
+        JsonMapper mapper = JsonMapper.builder().build();
+        User user = new User();
+        user.id = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        user.name = "Ünïcödé/\"quote\"\n";
+        user.age = 31;
+        user.role = Role.ADMIN;
+        user.tags = List.of((short) 0, (short) 1, (short) 2);
+
+        byte[] expected = mapper.toJson(user).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertEquals(java.util.Arrays.toString(expected), java.util.Arrays.toString(mapper.toBytes(user)));
+
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        boolean[] closed = {false};
+        java.io.FilterOutputStream guard = new java.io.FilterOutputStream(out) {
+            @Override
+            public void close() {
+                closed[0] = true;
+            }
+        };
+        mapper.writeTo(guard, user);
+        assertEquals(java.util.Arrays.toString(expected), java.util.Arrays.toString(out.toByteArray()));
+        assertFalse(closed[0], "writeTo must not close the caller's stream");
+
+        User decoded = mapper.fromBytes(mapper.toBytes(user), User.class);
+        assertEquals(user.id, decoded.id);
+        assertEquals(user.name, decoded.name);
+        assertEquals(user.age, decoded.age);
+        assertEquals(user.role, decoded.role);
+        assertEquals(user.tags, decoded.tags);
+    }
+
+    @Test
     void shouldResolveGenericObjectFields() {
         JsonMapper mapper = JsonMapper.builder().build();
 

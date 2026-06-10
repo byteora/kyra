@@ -1,5 +1,7 @@
 package org.byteora.kyra.spring.boot.autoconfigure;
 
+import org.byteora.kyra.core.annotation.Reflect;
+import org.byteora.kyra.core.runtime.GeneratedReflectors;
 import org.byteora.kyra.core.runtime.*;
 import org.byteora.kyra.orm.runtime.*;
 import org.byteora.kyra.orm.query.Page;
@@ -31,13 +33,13 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class KyraAutoConfigurationTest {
+public class KyraAutoConfigurationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withConfiguration(AutoConfigurations.of(KyraAutoConfiguration.class));
 
     private static void registerTxRowReflector() {
         ReflectorRegistry.clear();
-        ReflectorRegistry.register(TxRow.class, new TxRowReflector());
+        ReflectorRegistry.register(TxRow.class, GeneratedReflectors.load(TxRow.class));
     }
 
     @Test
@@ -305,7 +307,8 @@ class KyraAutoConfigurationTest {
         }
     }
 
-    static final class TxRow {
+    @Reflect
+    public static final class TxRow {
         private Long id;
         private String name;
 
@@ -360,88 +363,4 @@ class KyraAutoConfigurationTest {
         }
     }
 
-    static final class TxRowReflector implements Reflector<TxRow> {
-        @Override
-        public TxRow newInstance() {
-            return new TxRow();
-        }
-
-        @Override
-        public org.byteora.kyra.core.runtime.ClassInfo getClassInfo() {
-            return null;
-        }
-
-        @Override
-        public Object invoke(TxRow target, int index, Object[] args) {
-            return null;
-        }
-
-        @Override
-        public Object invoke(TxRow target, String method, Object[] args) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void set(TxRow target, int index, Object value) {
-
-        }
-
-        @Override
-        public void set(TxRow target, String property, Object value) {
-            switch (property) {
-                case "id" -> target.setId((Long) value);
-                case "name" -> target.setName((String) value);
-                default -> {
-                }
-            }
-        }
-
-        @Override
-        public Object get(TxRow target, int index) {
-            return null;
-        }
-
-        @Override
-        public Object get(TxRow target, String property) {
-            return switch (property) {
-                case "id" -> target.getId();
-                case "name" -> target.getName();
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getFields() {
-            return new String[]{"id", "name"};
-        }
-
-        @Override
-        public FieldInfo getField(int index) {
-            return null;
-        }
-
-        @Override
-        public FieldInfo getField(String field) {
-            return switch (field) {
-                case "id" -> new FieldInfo("id", Long.class, 0, null, new org.byteora.kyra.core.runtime.AnnotationMeta[0]);
-                case "name" -> new FieldInfo("name", String.class, 0, null, new org.byteora.kyra.core.runtime.AnnotationMeta[0]);
-                default -> null;
-            };
-        }
-
-        @Override
-        public String[] getMethods() {
-            return new String[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(int index) {
-            return new MethodInfo[0];
-        }
-
-        @Override
-        public MethodInfo[] getMethod(String name) {
-            return new MethodInfo[0];
-        }
-    }
 }

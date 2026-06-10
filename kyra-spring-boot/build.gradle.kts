@@ -34,3 +34,6 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+tasks.compileTestJava {
+    options.compilerArgs.add("-Akyra.module=${project.name}")
+}

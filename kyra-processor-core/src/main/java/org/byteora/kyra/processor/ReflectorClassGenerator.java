@@ -97,6 +97,7 @@ public final class ReflectorClassGenerator {
         writeInvoke(cw, classInternalName, entityType, entityInternalName, methodsByName, expandedMethodNames, parentReflectTypeName);
         writeSetByIndex(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName);
         writeGet(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName);
+        writePrimitiveAccessors(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName);
         writeGetFields(cw, classInternalName, includeFieldsMetadata, parentReflectTypeName);
         writeFieldIndex(cw, classInternalName, expandedFieldNames, includeFieldsMetadata, parentReflectTypeName);
         writeGetField(cw, classInternalName, entityType, fields, expandedFieldNames, includeFieldsMetadata, includeAnnotationMetadata, parentReflectTypeName);
@@ -1193,6 +1194,309 @@ public final class ReflectorClassGenerator {
             return;
         }
         emitIllegalArgument(mv, "Unknown method");
+    }
+
+    private void writePrimitiveAccessors(ClassWriter cw,
+                                         String classInternalName,
+                                         TypeElement entityType,
+                                         String entityInternalName,
+                                         List<VariableElement> fields,
+                                         List<String> expandedFieldNames,
+                                         String parentReflectTypeName) {
+        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                TypeKind.BOOLEAN, "setBoolean", "(Ljava/lang/Object;IZ)V", Opcodes.ILOAD,
+                "getBoolean", "(Ljava/lang/Object;I)Z", Opcodes.IRETURN);
+        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                TypeKind.BYTE, "setByte", "(Ljava/lang/Object;IB)V", Opcodes.ILOAD,
+                "getByte", "(Ljava/lang/Object;I)B", Opcodes.IRETURN);
+        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                TypeKind.SHORT, "setShort", "(Ljava/lang/Object;IS)V", Opcodes.ILOAD,
+                "getShort", "(Ljava/lang/Object;I)S", Opcodes.IRETURN);
+        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                TypeKind.INT, "setInt", "(Ljava/lang/Object;II)V", Opcodes.ILOAD,
+                "getInt", "(Ljava/lang/Object;I)I", Opcodes.IRETURN);
+        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                TypeKind.LONG, "setLong", "(Ljava/lang/Object;IJ)V", Opcodes.LLOAD,
+                "getLong", "(Ljava/lang/Object;I)J", Opcodes.LRETURN);
+        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                TypeKind.CHAR, "setChar", "(Ljava/lang/Object;IC)V", Opcodes.ILOAD,
+                "getChar", "(Ljava/lang/Object;I)C", Opcodes.IRETURN);
+        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                TypeKind.FLOAT, "setFloat", "(Ljava/lang/Object;IF)V", Opcodes.FLOAD,
+                "getFloat", "(Ljava/lang/Object;I)F", Opcodes.FRETURN);
+        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                TypeKind.DOUBLE, "setDouble", "(Ljava/lang/Object;ID)V", Opcodes.DLOAD,
+                "getDouble", "(Ljava/lang/Object;I)D", Opcodes.DRETURN);
+    }
+
+    private void maybeWritePrimitiveAccessor(ClassWriter cw,
+                                             String classInternalName,
+                                             TypeElement entityType,
+                                             String entityInternalName,
+                                             List<VariableElement> fields,
+                                             List<String> expandedFieldNames,
+                                             String parentReflectTypeName,
+                                             TypeKind primitiveKind,
+                                             String setMethodName,
+                                             String setDescriptor,
+                                             int setValueLoadOpcode,
+                                             String getMethodName,
+                                             String getDescriptor,
+                                             int getReturnOpcode) {
+        List<Integer> indices = primitiveFieldIndices(entityType, fields, expandedFieldNames, parentReflectTypeName, primitiveKind);
+        if (indices.isEmpty()) {
+            return;
+        }
+        writePrimitiveSetter(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                indices, primitiveKind, setMethodName, setDescriptor, setValueLoadOpcode);
+        writePrimitiveGetter(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+                indices, primitiveKind, getMethodName, getDescriptor, getReturnOpcode);
+    }
+
+    private List<Integer> primitiveFieldIndices(TypeElement entityType,
+                                                List<VariableElement> localFields,
+                                                List<String> expandedFieldNames,
+                                                String parentReflectTypeName,
+                                                TypeKind primitiveKind) {
+        Map<String, VariableElement> localFieldsByName = new LinkedHashMap<>();
+        for (VariableElement field : localFields) {
+            localFieldsByName.put(field.getSimpleName().toString(), field);
+        }
+        Map<String, VariableElement> parentFieldsByName = new LinkedHashMap<>();
+        if (parentReflectTypeName != null) {
+            TypeElement parentType = resolveParentReflectType(entityType);
+            if (parentType != null) {
+                for (VariableElement field : context.collectInstanceFields(parentType)) {
+                    parentFieldsByName.put(field.getSimpleName().toString(), field);
+                }
+            }
+        }
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < expandedFieldNames.size(); i++) {
+            String fieldName = expandedFieldNames.get(i);
+            VariableElement field = localFieldsByName.get(fieldName);
+            if (field == null) {
+                field = parentFieldsByName.get(fieldName);
+            }
+            if (field != null && field.asType().getKind() == primitiveKind) {
+                indices.add(i);
+            }
+        }
+        return indices;
+    }
+
+    private static String primitiveKindLabel(TypeKind kind) {
+        return switch (kind) {
+            case BOOLEAN -> "boolean";
+            case BYTE -> "byte";
+            case SHORT -> "short";
+            case INT -> "int";
+            case LONG -> "long";
+            case CHAR -> "char";
+            case FLOAT -> "float";
+            case DOUBLE -> "double";
+            default -> kind.name().toLowerCase();
+        };
+    }
+
+    private static final int PRIMITIVE_SET_ENTITY_SLOT = 6;
+    private static final int PRIMITIVE_SET_PARENT_SLOT = 7;
+
+    private void writePrimitiveSetter(ClassWriter cw,
+                                      String classInternalName,
+                                      TypeElement entityType,
+                                      String entityInternalName,
+                                      List<VariableElement> fields,
+                                      List<String> expandedFieldNames,
+                                      String parentReflectTypeName,
+                                      List<Integer> indices,
+                                      TypeKind primitiveKind,
+                                      String methodName,
+                                      String descriptor,
+                                      int valueLoadOpcode) {
+        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, methodName, descriptor, null, null);
+        mv.visitCode();
+        mv.visitVarInsn(Opcodes.ALOAD, 1);
+        mv.visitTypeInsn(Opcodes.CHECKCAST, entityInternalName);
+        // Slot 6 avoids overlap with long/double value params that occupy slots 3+4.
+        mv.visitVarInsn(Opcodes.ASTORE, PRIMITIVE_SET_ENTITY_SLOT);
+        Map<String, VariableElement> localFields = new LinkedHashMap<>();
+        for (VariableElement field : fields) {
+            localFields.put(field.getSimpleName().toString(), field);
+        }
+        emitPrimitiveIndexSwitch(mv, indices, primitiveKind,
+                (index, caseLabel) -> {
+                    String fieldName = expandedFieldNames.get(index);
+                    VariableElement field = localFields.get(fieldName);
+                    if (field != null) {
+                        emitSetPrimitiveCase(mv, entityType, entityInternalName, field, primitiveKind, valueLoadOpcode, PRIMITIVE_SET_ENTITY_SLOT);
+                    } else if (parentReflectTypeName != null) {
+                        mv.visitMethodInsn(Opcodes.INVOKESTATIC, classInternalName, "parentReflector", "()" + REFLECTOR_DESC, false);
+                        mv.visitVarInsn(Opcodes.ASTORE, PRIMITIVE_SET_PARENT_SLOT);
+                        mv.visitVarInsn(Opcodes.ALOAD, PRIMITIVE_SET_PARENT_SLOT);
+                        mv.visitVarInsn(Opcodes.ALOAD, PRIMITIVE_SET_ENTITY_SLOT);
+                        mv.visitVarInsn(Opcodes.ILOAD, 2);
+                        mv.visitVarInsn(valueLoadOpcode, 3);
+                        mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, REFLECTOR, methodName, descriptor, true);
+                        mv.visitInsn(Opcodes.RETURN);
+                    } else {
+                        emitIllegalArgument(mv, "Unknown property index or not a " + primitiveKindLabel(primitiveKind));
+                    }
+                });
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
+    }
+
+    private void writePrimitiveGetter(ClassWriter cw,
+                                      String classInternalName,
+                                      TypeElement entityType,
+                                      String entityInternalName,
+                                      List<VariableElement> fields,
+                                      List<String> expandedFieldNames,
+                                      String parentReflectTypeName,
+                                      List<Integer> indices,
+                                      TypeKind primitiveKind,
+                                      String methodName,
+                                      String descriptor,
+                                      int returnOpcode) {
+        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, methodName, descriptor, null, null);
+        mv.visitCode();
+        mv.visitVarInsn(Opcodes.ALOAD, 1);
+        mv.visitTypeInsn(Opcodes.CHECKCAST, entityInternalName);
+        mv.visitVarInsn(Opcodes.ASTORE, 3);
+        Map<String, VariableElement> localFields = new LinkedHashMap<>();
+        for (VariableElement field : fields) {
+            localFields.put(field.getSimpleName().toString(), field);
+        }
+        emitPrimitiveIndexSwitch(mv, indices, primitiveKind,
+                (index, caseLabel) -> {
+                    String fieldName = expandedFieldNames.get(index);
+                    VariableElement field = localFields.get(fieldName);
+                    if (field != null) {
+                        emitGetPrimitiveCase(mv, entityType, entityInternalName, field, primitiveKind, returnOpcode);
+                    } else if (parentReflectTypeName != null) {
+                        mv.visitMethodInsn(Opcodes.INVOKESTATIC, classInternalName, "parentReflector", "()" + REFLECTOR_DESC, false);
+                        mv.visitVarInsn(Opcodes.ASTORE, 4);
+                        mv.visitVarInsn(Opcodes.ALOAD, 4);
+                        mv.visitVarInsn(Opcodes.ALOAD, 3);
+                        mv.visitVarInsn(Opcodes.ILOAD, 2);
+                        mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, REFLECTOR, methodName, descriptor, true);
+                        mv.visitInsn(returnOpcode);
+                    } else {
+                        emitIllegalArgument(mv, "Unknown property index or not a " + primitiveKindLabel(primitiveKind));
+                    }
+                });
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
+    }
+
+    @FunctionalInterface
+    private interface PrimitiveIndexCaseEmitter {
+        void emit(int index, Label caseLabel);
+    }
+
+    private void emitPrimitiveIndexSwitch(MethodVisitor mv,
+                                          List<Integer> indices,
+                                          TypeKind primitiveKind,
+                                          PrimitiveIndexCaseEmitter caseEmitter) {
+        Label defaultLabel = new Label();
+        if (indices.size() == 1) {
+            int onlyIndex = indices.get(0);
+            mv.visitVarInsn(Opcodes.ILOAD, 2);
+            mv.visitLdcInsn(onlyIndex);
+            mv.visitJumpInsn(Opcodes.IF_ICMPNE, defaultLabel);
+            caseEmitter.emit(onlyIndex, defaultLabel);
+            mv.visitLabel(defaultLabel);
+            emitIllegalArgument(mv, "Unknown property index or not a " + primitiveKindLabel(primitiveKind));
+            return;
+        }
+        int[] keys = indices.stream().mapToInt(Integer::intValue).sorted().toArray();
+        Label[] caseLabels = new Label[keys.length];
+        for (int i = 0; i < keys.length; i++) {
+            caseLabels[i] = new Label();
+        }
+        mv.visitVarInsn(Opcodes.ILOAD, 2);
+        mv.visitLookupSwitchInsn(defaultLabel, keys, caseLabels);
+        for (int i = 0; i < keys.length; i++) {
+            mv.visitLabel(caseLabels[i]);
+            caseEmitter.emit(keys[i], caseLabels[i]);
+        }
+        mv.visitLabel(defaultLabel);
+        emitIllegalArgument(mv, "Unknown property index or not a " + primitiveKindLabel(primitiveKind));
+    }
+
+    private void emitSetPrimitiveCase(MethodVisitor mv,
+                                      TypeElement entityType,
+                                      String entityInternalName,
+                                      VariableElement field,
+                                      TypeKind primitiveKind,
+                                      int valueLoadOpcode,
+                                      int entitySlot) {
+        String fieldName = field.getSimpleName().toString();
+        ExecutableElement setter = findMethod(entityType, "set" + context.capitalize(fieldName), 1);
+        if (setter != null && setter.getParameters().get(0).asType().getKind() == primitiveKind) {
+            mv.visitVarInsn(Opcodes.ALOAD, entitySlot);
+            mv.visitVarInsn(valueLoadOpcode, 3);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, setter.getSimpleName().toString(),
+                    AsmUtils.methodDescriptor(setter.getReturnType(), setter.getParameters().stream().map(VariableElement::asType).toList(), context.types()), false);
+            if (setter.getReturnType().getKind() != TypeKind.VOID) {
+                if (setter.getReturnType().getKind() == TypeKind.LONG || setter.getReturnType().getKind() == TypeKind.DOUBLE) {
+                    mv.visitInsn(Opcodes.POP2);
+                } else {
+                    mv.visitInsn(Opcodes.POP);
+                }
+            }
+            mv.visitInsn(Opcodes.RETURN);
+            return;
+        }
+        if (field.getModifiers().contains(Modifier.PUBLIC)) {
+            mv.visitVarInsn(Opcodes.ALOAD, entitySlot);
+            mv.visitVarInsn(valueLoadOpcode, 3);
+            mv.visitFieldInsn(Opcodes.PUTFIELD, entityInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
+            mv.visitInsn(Opcodes.RETURN);
+            return;
+        }
+        emitUnsupported(mv, "No setter or field access for property: " + fieldName);
+    }
+
+    private void emitGetPrimitiveCase(MethodVisitor mv,
+                                      TypeElement entityType,
+                                      String entityInternalName,
+                                      VariableElement field,
+                                      TypeKind primitiveKind,
+                                      int returnOpcode) {
+        String fieldName = field.getSimpleName().toString();
+        ExecutableElement getter = findMethod(entityType, "get" + context.capitalize(fieldName), 0);
+        ExecutableElement booleanGetter = findMethod(entityType, "is" + context.capitalize(fieldName), 0);
+        ExecutableElement recordAccessor = entityType.getKind() == ElementKind.RECORD ? findMethod(entityType, fieldName, 0) : null;
+        if (getter != null && getter.getReturnType().getKind() == primitiveKind) {
+            mv.visitVarInsn(Opcodes.ALOAD, 3);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, getter.getSimpleName().toString(),
+                    AsmUtils.methodDescriptor(getter.getReturnType(), List.of(), context.types()), false);
+            mv.visitInsn(returnOpcode);
+            return;
+        }
+        if (booleanGetter != null && booleanGetter.getReturnType().getKind() == primitiveKind) {
+            mv.visitVarInsn(Opcodes.ALOAD, 3);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, booleanGetter.getSimpleName().toString(),
+                    AsmUtils.methodDescriptor(booleanGetter.getReturnType(), List.of(), context.types()), false);
+            mv.visitInsn(returnOpcode);
+            return;
+        }
+        if (recordAccessor != null && recordAccessor.getReturnType().getKind() == primitiveKind) {
+            mv.visitVarInsn(Opcodes.ALOAD, 3);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, recordAccessor.getSimpleName().toString(),
+                    AsmUtils.methodDescriptor(recordAccessor.getReturnType(), List.of(), context.types()), false);
+            mv.visitInsn(returnOpcode);
+            return;
+        }
+        if (field.getModifiers().contains(Modifier.PUBLIC)) {
+            mv.visitVarInsn(Opcodes.ALOAD, 3);
+            mv.visitFieldInsn(Opcodes.GETFIELD, entityInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
+            mv.visitInsn(returnOpcode);
+            return;
+        }
+        emitUnsupported(mv, "No getter or field access for property: " + fieldName);
     }
 
     private void emitSetCase(MethodVisitor mv, TypeElement entityType, String entityInternalName, VariableElement field) {
