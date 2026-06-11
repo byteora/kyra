@@ -1,5 +1,7 @@
 package org.byteora.kyra.orm.query;
 
+import java.util.Collection;
+
 public interface NamedSqlExpression extends SqlExpression {
     String alias();
 
@@ -43,5 +45,25 @@ public interface NamedSqlExpression extends SqlExpression {
 
     default Condition like(String value) {
         return Conditions.like(aliasRef(), value);
+    }
+
+    default Condition in(Collection<?> values) {
+        return Conditions.in(aliasRef(), values);
+    }
+
+    default Condition notIn(Collection<?> values) {
+        return Conditions.notIn(aliasRef(), values);
+    }
+
+    default Condition between(Object start, Object end) {
+        return Conditions.between(aliasRef(), start, end);
+    }
+
+    default Condition isNull() {
+        return Conditions.isNull(aliasRef());
+    }
+
+    default Condition isNotNull() {
+        return Conditions.isNotNull(aliasRef());
     }
 }

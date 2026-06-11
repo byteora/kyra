@@ -354,6 +354,39 @@ class QueryWrapperTest {
     }
 
     @Test
+    void orderByVarargsShouldRenderMultipleOrders() {
+        TestUserTable users = TestUserTable.USERS;
+
+        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+                .selectAll()
+                .from(users)
+                .where(users.AGE.ge(18))
+                .orderBy(users.ID.asc(), users.NAME.desc())
+                .toDefinition(), DbType.MYSQL);
+
+        assertEquals(
+                "SELECT * FROM users WHERE age >= ? ORDER BY id ASC, name DESC",
+                request.sql());
+        assertArrayEquals(new Object[]{18}, request.args());
+    }
+
+    @Test
+    void existsShouldRenderLimitedSelectOne() {
+        RecordingSqlExecutor sqlSession = new RecordingSqlExecutor();
+        TestUserTable users = TestUserTable.USERS;
+
+        boolean exists = Wrapper.query(sqlSession)
+                .selectAll()
+                .from(users)
+                .where(users.ID.eq(1L))
+                .exists();
+
+        assertEquals(true, exists);
+        assertEquals("SELECT 1 FROM users WHERE id = ? LIMIT ?", sqlSession.lastSql);
+        assertArrayEquals(new Object[]{1L, 1}, sqlSession.lastArgs);
+    }
+
+    @Test
     void predicateBuilderShouldSupportOrAndNestedGroups() {
         TestUserTable users = TestUserTable.USERS;
 
@@ -541,14 +574,23 @@ class QueryWrapperTest {
         private final TypeConverter typeConverter = new TypeConverter();
         private final TestUser oneResult = new TestUser();
         private final List<TestUser> listResult = List.of(new TestUser(), new TestUser());
+        private String lastSql;
+        private Object[] lastArgs;
 
         @Override
         public <T> T selectOne(String sql, Object[] args, Class<T> resultType) {
+            this.lastSql = sql;
+            this.lastArgs = args;
             return resultType.cast(oneResult);
         }
 
         @Override
         public <T> List<T> selectList(String sql, Object[] args, Class<T> resultType) {
+            this.lastSql = sql;
+            this.lastArgs = args;
+            if (resultType == Integer.class) {
+                return List.of(resultType.cast(1));
+            }
             return listResult.stream().map(resultType::cast).toList();
         }
 

@@ -40,11 +40,11 @@ public final class Sql {
     public static <T> T select(EntityTable<T> table, Consumer<PredicateBuilder> consumer) {
         return query().selectAll().from(table).where(consumer).one(table.entityType());
     }
-    public static <T> T count(EntityTable<T> table, Condition... condition) {
-        return query().select(Functions.count()).from(table).where(condition).one(table.entityType());
+    public static <T> long count(EntityTable<T> table, Condition... condition) {
+        return query().selectAll().from(table).where(condition).count();
     }
-    public static <T> T count(EntityTable<T> table, Consumer<PredicateBuilder> consumer) {
-        return query().select(Functions.count()).from(table).where(consumer).one(table.entityType());
+    public static <T> long count(EntityTable<T> table, Consumer<PredicateBuilder> consumer) {
+        return query().selectAll().from(table).where(consumer).count();
     }
     public static <T> List<T> selectList(EntityTable<T> table, Condition... condition) {
         return query().selectAll().from(table).where(condition).list(table.entityType());
