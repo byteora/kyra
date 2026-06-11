@@ -103,6 +103,24 @@ public class JsonArrayCollectionBenchmark {
     }
 
     @Benchmark
+    public String jacksonSerializeDoubleArray(BenchmarkState state) {
+        try {
+            return state.jacksonMapper.writeValueAsString(state.doubles);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    @Benchmark
+    public double[] jacksonDeserializeDoubleArray(BenchmarkState state) {
+        try {
+            return state.jacksonMapper.readValue(state.doubleArrayJson, double[].class);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    @Benchmark
     public String jacksonSerializeIntList(BenchmarkState state) {
         try {
             return state.jacksonMapper.writeValueAsString(state.intList);
