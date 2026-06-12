@@ -1,6 +1,5 @@
 package org.byteora.kyra.orm.query;
 
-import org.byteora.kyra.orm.runtime.DbType;
 import org.byteora.kyra.orm.runtime.dialect.RenderContext;
 
 import java.util.ArrayList;
@@ -14,11 +13,6 @@ final class ConditionNodes {
 
     record ValueCondition(SqlExpression left, String operator, Object value) implements ConditionNode {
         @Override
-        public void appendTo(StringBuilder sql, List<Object> args, DbType dbType) {
-            appendTo(RenderContext.bridge(dbType, sql, args));
-        }
-
-        @Override
         public void appendTo(RenderContext context) {
             left.appendTo(context);
             context.sql().append(' ').append(operator).append(" ?");
@@ -27,11 +21,6 @@ final class ConditionNodes {
     }
 
     record ExpressionCondition(SqlExpression left, String operator, SqlExpression right) implements ConditionNode {
-        @Override
-        public void appendTo(StringBuilder sql, List<Object> args, DbType dbType) {
-            appendTo(RenderContext.bridge(dbType, sql, args));
-        }
-
         @Override
         public void appendTo(RenderContext context) {
             left.appendTo(context);
@@ -42,11 +31,6 @@ final class ConditionNodes {
 
     record NullCondition(SqlExpression expression, boolean negated) implements ConditionNode {
         @Override
-        public void appendTo(StringBuilder sql, List<Object> args, DbType dbType) {
-            appendTo(RenderContext.bridge(dbType, sql, args));
-        }
-
-        @Override
         public void appendTo(RenderContext context) {
             expression.appendTo(context);
             context.sql().append(negated ? " IS NOT NULL" : " IS NULL");
@@ -55,11 +39,6 @@ final class ConditionNodes {
 
     record InCondition(SqlExpression expression, String operator, Collection<?> items,
                        boolean whenEmptyAlwaysTrue) implements ConditionNode {
-        @Override
-        public void appendTo(StringBuilder sql, List<Object> args, DbType dbType) {
-            appendTo(RenderContext.bridge(dbType, sql, args));
-        }
-
         @Override
         public void appendTo(RenderContext context) {
             if (items.isEmpty()) {
@@ -76,11 +55,6 @@ final class ConditionNodes {
 
     record BetweenCondition(SqlExpression expression, Object start, Object end) implements ConditionNode {
         @Override
-        public void appendTo(StringBuilder sql, List<Object> args, DbType dbType) {
-            appendTo(RenderContext.bridge(dbType, sql, args));
-        }
-
-        @Override
         public void appendTo(RenderContext context) {
             expression.appendTo(context);
             context.sql().append(" BETWEEN ? AND ?");
@@ -91,11 +65,6 @@ final class ConditionNodes {
 
     record GroupCondition(Condition condition) implements ConditionNode {
         @Override
-        public void appendTo(StringBuilder sql, List<Object> args, DbType dbType) {
-            appendTo(RenderContext.bridge(dbType, sql, args));
-        }
-
-        @Override
         public void appendTo(RenderContext context) {
             context.sql().append('(');
             condition.appendTo(context);
@@ -105,11 +74,6 @@ final class ConditionNodes {
 
     record NotCondition(Condition condition) implements ConditionNode {
         @Override
-        public void appendTo(StringBuilder sql, List<Object> args, DbType dbType) {
-            appendTo(RenderContext.bridge(dbType, sql, args));
-        }
-
-        @Override
         public void appendTo(RenderContext context) {
             context.sql().append("NOT (");
             condition.appendTo(context);
@@ -118,11 +82,6 @@ final class ConditionNodes {
     }
 
     record CompositeCondition(String operator, List<Condition> conditions) implements ConditionNode {
-        @Override
-        public void appendTo(StringBuilder sql, List<Object> args, DbType dbType) {
-            appendTo(RenderContext.bridge(dbType, sql, args));
-        }
-
         @Override
         public void appendTo(RenderContext context) {
             context.sql().append('(');

@@ -15,6 +15,7 @@ import org.byteora.kyra.orm.query.Expressions;
 import org.byteora.kyra.orm.runtime.AbstractMapper;
 import org.byteora.kyra.core.runtime.Reflector;
 import org.byteora.kyra.core.runtime.ReflectorRegistry;
+import org.byteora.kyra.orm.runtime.DbType;
 import org.byteora.kyra.orm.runtime.DefaultIdGenerator;
 import org.byteora.kyra.orm.runtime.SqlExecutionContext;
 import org.byteora.kyra.orm.runtime.SqlExecutor;
@@ -29,8 +30,26 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T> {
+    /**
+     * Caches the rendered {@code insert} SQL per (entity type, dialect, ordered column set). The
+     * column set is the only input to the rendered statement (placeholders are positional), so for a
+     * batch of same-shaped entities the SQL is rendered once and reused. Bounded by the number of
+     * distinct non-null field combinations per entity type.
+     */
+    private static final Map<InsertSqlKey, String> INSERT_SQL_CACHE = new ConcurrentHashMap<>();
+
+    /**
+     * Caches the rendered {@code update ... where id = ?} SQL per (entity type, dialect, ordered
+     * column set). Mirrors {@link #INSERT_SQL_CACHE}: placeholders are positional and the where
+     * clause is always a single id equality, so the statement depends only on the non-null column
+     * set. On a cache hit the per-field {@code UpdateAssignment}/{@code LiteralExpression} wrappers
+     * are skipped entirely.
+     */
+    private static final Map<UpdateSqlKey, String> UPDATE_BY_ID_SQL_CACHE = new ConcurrentHashMap<>();
+
     protected final EntityTable<T> entityTable;
 
     public BaseMapperImpl(SqlExecutor sqlExecutor, Class<T> entityClass) {
@@ -50,7 +69,7 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
                 new WhereDefinition(Conditions.eq(entityTable.idColumn(), id), List.of(), null, null)
         );
         SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(queryDefinition, sqlExecutor.getDbType());
-        return sqlExecutor.selectOne(request.getSql(), request.getArgs(), entityClass);
+        return sqlExecutor.selectOne(request.sql(), request.args(), entityClass);
     }
 
     @Override
@@ -68,20 +87,20 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
                 new WhereDefinition(Conditions.in(entityTable.idColumn(), ids), List.of(), null, null)
         );
         SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(queryDefinition, sqlExecutor.getDbType());
-        return sqlExecutor.selectList(request.getSql(), request.getArgs(), entityClass);
+        return sqlExecutor.selectList(request.sql(), request.args(), entityClass);
     }
 
     @Override
     public List<T> selectList(WhereWrapper query) {
         if (query == null) query = new WhereWrapper();
         SqlRequest request = sqlExecutor.getSqlGenerator().renderSelect(entityTable, query.toDefinition(), sqlExecutor.getDbType());
-        return sqlExecutor.selectList(request.getSql(), request.getArgs(), entityClass);
+        return sqlExecutor.selectList(request.sql(), request.args(), entityClass);
     }
 
     @Override
     public T selectOne(WhereWrapper query) {
         SqlRequest request = sqlExecutor.getSqlGenerator().renderSelect(entityTable, query.toDefinition(), sqlExecutor.getDbType());
-        return sqlExecutor.selectOne(request.getSql(), request.getArgs(), entityClass);
+        return sqlExecutor.selectOne(request.sql(), request.args(), entityClass);
     }
 
     @Override
@@ -101,17 +120,13 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
                 ),
                 sqlExecutor.getDbType()
         );
-        SqlExecutionContext context = new SqlExecutionContext(
-                sqlExecutor,
-                getClass().getName(),
-                "count",
-                SqlCommandType.SELECT,
-                Long.class,
-                null,
-                countRequest,
-                true
-        );
-        return sqlExecutor.getSqlPagingSupport().count(sqlExecutor, context, request.getSql(), request.getArgs());
+        SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
+                .sqlExecutor(sqlExecutor)
+                .mapper(getClass(), "count")
+                .resultType(Long.class)
+                .countRequest(countRequest)
+                .build();
+        return sqlExecutor.getSqlPagingSupport().count(sqlExecutor, context, request.sql(), request.args());
     }
 
     @Override
@@ -131,17 +146,14 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
                 ),
                 sqlExecutor.getDbType()
         );
-        SqlExecutionContext context = new SqlExecutionContext(
-                sqlExecutor,
-                getClass().getName(),
-                "page",
-                SqlCommandType.SELECT,
-                entityClass,
-                paging,
-                countRequest,
-                true
-        );
-        return sqlExecutor.getSqlPagingSupport().page(sqlExecutor, context, request.getSql(), request.getArgs(), paging, entityClass);
+        SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
+                .sqlExecutor(sqlExecutor)
+                .mapper(getClass(), "page")
+                .resultType(entityClass)
+                .paging(paging)
+                .countRequest(countRequest)
+                .build();
+        return sqlExecutor.getSqlPagingSupport().page(sqlExecutor, context, request.sql(), request.args(), paging, entityClass);
     }
 
     @Override
@@ -198,13 +210,13 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
     @Override
     public int delete(WhereWrapper query) {
         SqlRequest request = sqlExecutor.getSqlGenerator().renderDelete(entityTable, query.toDefinition(), sqlExecutor.getDbType());
-        return sqlExecutor.update(request.getSql(), request.getArgs());
+        return sqlExecutor.update(request.sql(), request.args());
     }
 
     @Override
     public int update(UpdateWrapper updateWrapper) {
         SqlRequest request = sqlExecutor.getSqlGenerator().renderUpdate(entityTable, updateWrapper.toDefinition(), sqlExecutor.getDbType());
-        return sqlExecutor.update(request.getSql(), request.getArgs());
+        return sqlExecutor.update(request.sql(), request.args());
     }
 
     @Override
@@ -214,7 +226,7 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
                 new WhereDefinition(Conditions.eq(entityTable.idColumn(), id), List.of(), null, null),
                 sqlExecutor.getDbType()
         );
-        return sqlExecutor.update(request.getSql(), request.getArgs());
+        return sqlExecutor.update(request.sql(), request.args());
     }
 
     @Override
@@ -227,7 +239,7 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
                 new WhereDefinition(Conditions.in(entityTable.idColumn(), ids), List.of(), null, null),
                 sqlExecutor.getDbType()
         );
-        return sqlExecutor.update(request.getSql(), request.getArgs());
+        return sqlExecutor.update(request.sql(), request.args());
     }
 
     private boolean isIdField(String field) {
@@ -269,8 +281,12 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
         if (columns.isEmpty()) {
             throw new SqlExecutorException("Insert requires at least one non-null field: " + entityClass.getName());
         }
-        SqlRequest request = sqlExecutor.getSqlGenerator().renderInsert(entityTable, columns, args, sqlExecutor.getDbType());
-        return new InsertSpec(request.getSql(), request.getArgs(), assignGeneratedId);
+        DbType dbType = sqlExecutor.getDbType();
+        String sql = INSERT_SQL_CACHE.computeIfAbsent(
+                new InsertSqlKey(entityClass, dbType, columns),
+                key -> sqlExecutor.getSqlGenerator().renderInsert(entityTable, key.columns(), args, dbType).sql()
+        );
+        return new InsertSpec(sql, args.toArray(), assignGeneratedId);
     }
 
     private boolean appendInsertId(T entity, Reflector<T> reflector, int idFieldIndex, List<String> columns, List<Object> args) {
@@ -307,7 +323,8 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
         if (idValue == null) {
             throw new SqlExecutorException("Update by id requires non-null id field: " + entityClass.getName());
         }
-        List<UpdateAssignment> updateAssignments = new ArrayList<>();
+        List<String> columns = new ArrayList<>();
+        List<Object> args = new ArrayList<>();
         for (int fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
             if (fieldIndex == idFieldIndex) {
                 continue;
@@ -317,23 +334,42 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
             if (value == null) {
                 continue;
             }
-            updateAssignments.add(new UpdateAssignment(
-                    entityTable.columnRef(entityTable.columnName(field)),
-                    Expressions.literal(value)
-            ));
+            columns.add(entityTable.columnName(field));
+            args.add(value);
         }
-        if (updateAssignments.isEmpty()) {
+        if (columns.isEmpty()) {
             return null;
         }
-        SqlRequest request = sqlExecutor.getSqlGenerator().renderUpdate(
+        args.add(idValue);
+        DbType dbType = sqlExecutor.getDbType();
+        String sql = UPDATE_BY_ID_SQL_CACHE.computeIfAbsent(
+                new UpdateSqlKey(entityClass, dbType, columns),
+                key -> renderUpdateByIdSql(key.columns(), idValue, dbType)
+        );
+        return new UpdateByIdSpec(sql, args.toArray());
+    }
+
+    /**
+     * Renders the {@code update ... where id = ?} statement for a given column set. Only invoked on
+     * a cache miss; the literal id value is used solely to build the where condition for rendering
+     * and never affects the emitted SQL (the clause renders to a positional placeholder).
+     */
+    private String renderUpdateByIdSql(List<String> columns, Object idValue, DbType dbType) {
+        List<UpdateAssignment> updateAssignments = new ArrayList<>(columns.size());
+        for (String column : columns) {
+            updateAssignments.add(new UpdateAssignment(
+                    entityTable.columnRef(column),
+                    Expressions.literal(null)
+            ));
+        }
+        return sqlExecutor.getSqlGenerator().renderUpdate(
                 entityTable,
                 new UpdateDefinition(
                         updateAssignments,
                         new WhereDefinition(Conditions.eq(entityTable.idColumn(), idValue), List.of(), null, null)
                 ),
-                sqlExecutor.getDbType()
-        );
-        return new UpdateByIdSpec(request.getSql(), request.getArgs());
+                dbType
+        ).sql();
     }
 
     private int executeGroupedBatch(Map<String, List<Object[]>> batchGroups) {
@@ -349,5 +385,21 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
     }
 
     private record UpdateByIdSpec(String sql, Object[] args) {
+    }
+
+    /**
+     * Cache key for rendered insert SQL. {@code columns} participates in equality by value (an
+     * ordered {@link List}); it is built fresh per call and never mutated afterwards, so it is safe
+     * to retain as a key without defensive copying.
+     */
+    private record InsertSqlKey(Class<?> entityType, DbType dbType, List<String> columns) {
+    }
+
+    /**
+     * Cache key for rendered {@code update ... where id = ?} SQL. {@code columns} participates in
+     * equality by value (an ordered {@link List}); it is built fresh per call and never mutated
+     * afterwards, so it is safe to retain as a key without defensive copying.
+     */
+    private record UpdateSqlKey(Class<?> entityType, DbType dbType, List<String> columns) {
     }
 }

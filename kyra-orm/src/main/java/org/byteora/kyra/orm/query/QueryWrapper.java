@@ -7,6 +7,7 @@ import org.byteora.kyra.orm.runtime.SqlExecutorException;
 import org.byteora.kyra.orm.xml.SqlCommandType;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -30,7 +31,7 @@ public final class QueryWrapper {
     }
 
     public QueryWrapper select(SqlExpression... expressions) {
-        selectExpressions.addAll(List.of(expressions));
+        Collections.addAll(selectExpressions, expressions);
         return this;
     }
 
@@ -97,7 +98,7 @@ public final class QueryWrapper {
 
     public QueryWrapper groupBy(SqlExpression... expressions) {
         groupByExpressions.clear();
-        groupByExpressions.addAll(List.of(expressions));
+        Collections.addAll(groupByExpressions, expressions);
         return this;
     }
 
@@ -139,6 +140,11 @@ public final class QueryWrapper {
         return this;
     }
 
+    public QueryWrapper orderBy(Order... orders) {
+        whereWrapper.orderBy(orders);
+        return this;
+    }
+
     public QueryWrapper limit(int limit) {
         whereWrapper.limit(limit);
         return this;
@@ -165,36 +171,33 @@ public final class QueryWrapper {
     }
 
     public <T> T one(Class<T> resultType) {
-        var sqlExecutor = requireSqlExecutor();
-        QueryDefinition definition = toDefinition();
-        SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(definition, sqlExecutor.getDbType());
-        return sqlExecutor.selectOne(request.getSql(), request.getArgs(), resultType);
-
+        SqlExecutor sqlExecutor = requireSqlExecutor();
+        SqlRequest request = renderQuery(sqlExecutor);
+        return sqlExecutor.selectOne(request.sql(), request.args(), resultType);
     }
 
     public <T> List<T> list(Class<T> resultType) {
-        var sqlExecutor = requireSqlExecutor();
-        QueryDefinition definition = toDefinition();
-        SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(definition, sqlExecutor.getDbType());
-        return sqlExecutor.selectList(request.getSql(), request.getArgs(), resultType);
+        SqlExecutor sqlExecutor = requireSqlExecutor();
+        SqlRequest request = renderQuery(sqlExecutor);
+        return sqlExecutor.selectList(request.sql(), request.args(), resultType);
     }
 
     public long count() {
-        var sqlExecutor = requireSqlExecutor();
+        SqlExecutor sqlExecutor = requireSqlExecutor();
         QueryDefinition definition = toDefinition();
         SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(definition, sqlExecutor.getDbType());
         SqlRequest countRequest = sqlExecutor.getSqlGenerator().rewriteCount(definition, sqlExecutor.getDbType());
-        SqlExecutionContext context = new SqlExecutionContext(
-                sqlExecutor,
-                QueryWrapper.class.getName(),
-                "count",
-                SqlCommandType.SELECT,
-                Long.class,
-                null,
-                countRequest,
-                true
-        );
-        return sqlExecutor.getSqlPagingSupport().count(sqlExecutor, context, request.getSql(), request.getArgs());
+        SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
+                .sqlExecutor(sqlExecutor)
+                .mapper(QueryWrapper.class, "count")
+                .resultType(Long.class)
+                .countRequest(countRequest)
+                .build();
+        return sqlExecutor.getSqlPagingSupport().count(sqlExecutor, context, request.sql(), request.args());
+    }
+
+    public <T> Page<T> page(int current, int size, Class<T> resultType) {
+        return page(Paging.of(current, size), resultType);
     }
 
     public <T> Page<T> page(Paging paging, Class<T> resultType) {
@@ -202,17 +205,34 @@ public final class QueryWrapper {
         QueryDefinition definition = toDefinition();
         SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(definition, sqlExecutor.getDbType());
         SqlRequest countRequest = sqlExecutor.getSqlGenerator().rewriteCount(definition, sqlExecutor.getDbType());
-        SqlExecutionContext context = new SqlExecutionContext(
-                sqlExecutor,
-                QueryWrapper.class.getName(),
-                "page",
-                SqlCommandType.SELECT,
-                resultType,
-                paging,
-                countRequest,
-                true
+        SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
+                .sqlExecutor(sqlExecutor)
+                .mapper(QueryWrapper.class, "page")
+                .resultType(resultType)
+                .paging(paging)
+                .countRequest(countRequest)
+                .build();
+        return sqlExecutor.getSqlPagingSupport().page(sqlExecutor, context, request.sql(), request.args(), paging, resultType);
+    }
+
+    public boolean exists() {
+        SqlExecutor sqlExecutor = requireSqlExecutor();
+        QueryDefinition base = toDefinition();
+        QueryDefinition existsDefinition = new QueryDefinition(
+                List.of(Expressions.raw("1")),
+                false,
+                base.from(),
+                base.joins(),
+                base.groupByExpressions(),
+                base.having(),
+                new WhereDefinition(base.where().condition(), List.of(), 1, null)
         );
-        return sqlExecutor.getSqlPagingSupport().page(sqlExecutor, context, request.getSql(), request.getArgs(), paging, resultType);
+        SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(existsDefinition, sqlExecutor.getDbType());
+        return !sqlExecutor.selectList(request.sql(), request.args(), Integer.class).isEmpty();
+    }
+
+    private SqlRequest renderQuery(SqlExecutor sqlExecutor) {
+        return sqlExecutor.getSqlGenerator().renderQuery(toDefinition(), sqlExecutor.getDbType());
     }
 
     private SqlExecutor requireSqlExecutor() {

@@ -1,8 +1,5 @@
 package org.byteora.kyra.orm.query;
 
-import org.byteora.kyra.orm.runtime.DbType;
-import org.byteora.kyra.orm.runtime.dialect.RenderContext;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -346,20 +343,12 @@ public final class PredicateBuilder {
         if (segments.isEmpty()) {
             return null;
         }
-        return new Condition() {
-            @Override
-            public void appendTo(StringBuilder sql, List<Object> args, DbType dbType) {
-                appendTo(RenderContext.bridge(dbType, sql, args));
-            }
-
-            @Override
-            public void appendTo(RenderContext context) {
-                for (int i = 0; i < segments.size(); i++) {
-                    if (i > 0) {
-                        context.sql().append(' ').append(segments.get(i).operator()).append(' ');
-                    }
-                    segments.get(i).condition().appendTo(context);
+        return (ConditionNode) context -> {
+            for (int i = 0; i < segments.size(); i++) {
+                if (i > 0) {
+                    context.sql().append(' ').append(segments.get(i).operator()).append(' ');
                 }
+                segments.get(i).condition().appendTo(context);
             }
         };
     }

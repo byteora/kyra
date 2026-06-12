@@ -1,6 +1,7 @@
 package org.byteora.kyra.orm.query;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -32,6 +33,12 @@ public final class WhereWrapper {
         consumer.accept(builder);
         orders.clear();
         orders.addAll(builder.build());
+        return this;
+    }
+
+    public WhereWrapper orderBy(Order... orders) {
+        this.orders.clear();
+        Collections.addAll(this.orders, orders);
         return this;
     }
 

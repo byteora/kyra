@@ -8,6 +8,7 @@ import org.byteora.kyra.orm.runtime.SqlExecutorException;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 public final class Sql {
@@ -36,9 +37,20 @@ public final class Sql {
     public static <T> T select(EntityTable<T> table, Condition... condition) {
         return query().selectAll().from(table).where(condition).one(table.entityType());
     }
-
+    public static <T> T select(EntityTable<T> table, Consumer<PredicateBuilder> consumer) {
+        return query().selectAll().from(table).where(consumer).one(table.entityType());
+    }
+    public static <T> long count(EntityTable<T> table, Condition... condition) {
+        return query().selectAll().from(table).where(condition).count();
+    }
+    public static <T> long count(EntityTable<T> table, Consumer<PredicateBuilder> consumer) {
+        return query().selectAll().from(table).where(consumer).count();
+    }
     public static <T> List<T> selectList(EntityTable<T> table, Condition... condition) {
         return query().selectAll().from(table).where(condition).list(table.entityType());
+    }
+    public static <T> List<T> selectList(EntityTable<T> table, Consumer<PredicateBuilder> consumer) {
+        return query().selectAll().from(table).where(consumer).list(table.entityType());
     }
 
     public static <T> int insert(T entity) {

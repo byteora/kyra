@@ -1,36 +1,51 @@
 package org.byteora.kyra.orm.dynamic;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class DynamicSqlContext {
-    private final Map<String, Object> bindings;
+    /**
+     * Caches the dotted-path split of binding expressions (e.g. {@code "query.minAge"} →
+     * {@code ["query", "minAge"]}). Expressions come from the (compile-time) SQL templates, so the
+     * key space is bounded by the number of statements. The returned arrays are treated as read-only
+     * by all callers, so sharing a single instance per expression is safe.
+     */
+    private static final Map<String, String[]> PATH_CACHE = new ConcurrentHashMap<>();
+
+    private Map<String, Object> bindings;
+    private boolean ownsBindings;
     private final Deque<Scope> scopes = new ArrayDeque<>();
     private int uniqueNumber;
 
     public DynamicSqlContext(Map<String, Object> bindings) {
-        this.bindings = new LinkedHashMap<>(bindings);
+        // Share the caller's (freshly built, read-only) parameter map and only copy on first
+        // mutation. Statements without <foreach>/<bind> never mutate, so they avoid the copy.
+        this.bindings = bindings;
+        this.ownsBindings = false;
     }
 
     public Map<String, Object> getBindings() {
         return bindings;
     }
 
-    public boolean evaluateBoolean(String expression) {
-        return ExpressionEvaluator.toBoolean(evaluateValue(expression));
+    public boolean evaluateBoolean(CompiledExpression expression) {
+        return ExpressionEvaluator.toBoolean(expression.evaluate(this));
     }
 
-    public Object evaluateValue(String expression) {
-        return ExpressionEvaluator.evaluate(expression, this);
+    public Object evaluateValue(CompiledExpression expression) {
+        return expression.evaluate(this);
     }
 
     public Object resolveValue(String expression) {
         if (expression == null || expression.isBlank()) {
             return null;
         }
-        String[] parts = expression.split("\\.");
+        String[] parts = splitPath(expression);
         String root = parts[0];
         for (Scope scope : scopes) {
             if (scope.values.containsKey(root)) {
@@ -69,36 +84,11 @@ public final class DynamicSqlContext {
         return PropertyAccess.invoke(target, methodName, argument);
     }
 
-    public String applyText(String text) {
-        StringBuilder sql = new StringBuilder();
-        int index = 0;
-        while (index < text.length()) {
-            int hash = text.indexOf("#{", index);
-            int dollar = text.indexOf("${", index);
-            int start = nextTokenStart(hash, dollar);
-            if (start < 0) {
-                sql.append(text.substring(index));
-                break;
-            }
-            sql.append(text, index, start);
-            boolean hashToken = start == hash;
-            int end = text.indexOf('}', start + 2);
-            if (end < 0) {
-                throw new IllegalArgumentException("Unclosed placeholder in sql segment: " + text);
-            }
-            String expression = text.substring(start + 2, end).trim();
-            if (hashToken) {
-                sql.append("#{").append(aliasExpression(expression)).append('}');
-            } else {
-                Object value = evaluateValue(expression);
-                sql.append(value == null ? "" : value);
-            }
-            index = end + 1;
-        }
-        return sql.toString();
-    }
-
     public void bind(String name, Object value) {
+        if (!ownsBindings) {
+            bindings = new LinkedHashMap<>(bindings);
+            ownsBindings = true;
+        }
         bindings.put(name, value);
         if (!scopes.isEmpty()) {
             scopes.peek().values.put(name, value);
@@ -117,6 +107,26 @@ public final class DynamicSqlContext {
         scopes.pop();
     }
 
+    static String[] splitPath(String expression) {
+        return PATH_CACHE.computeIfAbsent(expression, DynamicSqlContext::computeSplitPath);
+    }
+
+    private static String[] computeSplitPath(String expression) {
+        int dot = expression.indexOf('.');
+        if (dot < 0) {
+            return new String[]{expression};
+        }
+        List<String> parts = new ArrayList<>();
+        int start = 0;
+        while (dot >= 0) {
+            parts.add(expression.substring(start, dot));
+            start = dot + 1;
+            dot = expression.indexOf('.', start);
+        }
+        parts.add(expression.substring(start));
+        return parts.toArray(new String[0]);
+    }
+
     private Object resolvePath(Object current, String[] parts, int startIndex) {
         Object value = current;
         for (int i = startIndex; i < parts.length; i++) {
@@ -125,7 +135,7 @@ public final class DynamicSqlContext {
         return value;
     }
 
-    private String aliasExpression(String expression) {
+    String aliasExpression(String expression) {
         int dot = expression.indexOf('.');
         String root = dot < 0 ? expression : expression.substring(0, dot);
         String alias = lookupAlias(root);
@@ -143,16 +153,6 @@ public final class DynamicSqlContext {
             }
         }
         return null;
-    }
-
-    private int nextTokenStart(int first, int second) {
-        if (first < 0) {
-            return second;
-        }
-        if (second < 0) {
-            return first;
-        }
-        return Math.min(first, second);
     }
 
     private boolean isSimpleValue(Object value) {
