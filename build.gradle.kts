@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "org.byteora"
-version = "1.0.3"
+version = "1.0.4"
 
 allprojects {
     description = when (name) {

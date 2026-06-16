@@ -180,4 +180,58 @@ public class GenericResolutionTest {
         assertInstanceOf(Integer.class, holder.num);
         assertEquals(7, holder.num);
     }
+
+    @Reflect
+    public static class BaseApiResult {
+        private int statusCode;
+        private String errorMsg;
+
+        public int getStatusCode() {
+            return statusCode;
+        }
+
+        public void setStatusCode(int statusCode) {
+            this.statusCode = statusCode;
+        }
+
+        public String getErrorMsg() {
+            return errorMsg;
+        }
+
+        public void setErrorMsg(String errorMsg) {
+            this.errorMsg = errorMsg;
+        }
+    }
+
+    @Reflect
+    public static class EnterGameResult extends BaseApiResult {
+        private String url;
+
+        public String getUrl() {
+            return url;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+    }
+
+    @Test
+    void inheritedPrimitiveIntFieldRoundTrip() {
+        JsonMapper mapper = JsonMapper.builder().build();
+        EnterGameResult in = new EnterGameResult();
+        in.setStatusCode(0);
+        in.setErrorMsg("ok");
+        in.setUrl("http://example/game");
+
+        EnterGameResult out = mapper.fromJson(mapper.toJson(in), EnterGameResult.class);
+
+        assertEquals(0, out.getStatusCode());
+        assertEquals("ok", out.getErrorMsg());
+        assertEquals("http://example/game", out.getUrl());
+
+        EnterGameResult parsed = mapper.fromJson(
+                "{\"statusCode\":5,\"errorMsg\":\"e\",\"url\":\"u\"}", EnterGameResult.class);
+        assertEquals(5, parsed.getStatusCode());
+    }
 }

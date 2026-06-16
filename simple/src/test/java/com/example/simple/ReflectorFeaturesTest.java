@@ -134,6 +134,18 @@ class ReflectorFeaturesTest {
             assertFalse(Arrays.asList(reflector.getMethods()).contains("equals"));
             assertEquals(0, reflector.getMethod("equals").length);
         }
+
+        @Test
+        void shouldAccessInheritedPrimitiveFieldThroughChildReflector() {
+            Reflector<AdminUser> reflector = ReflectorRegistry.get(AdminUser.class);
+            AdminUser user = new AdminUser();
+
+            int index = reflector.fieldIndex("level");
+            reflector.setInt(user, index, 42);
+
+            assertEquals(42, user.getLevel());
+            assertEquals(42, reflector.getInt(user, index));
+        }
     }
 
     @Nested

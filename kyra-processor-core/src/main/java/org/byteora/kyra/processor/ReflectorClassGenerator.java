@@ -1335,7 +1335,11 @@ public final class ReflectorClassGenerator {
                         mv.visitVarInsn(Opcodes.ASTORE, PRIMITIVE_SET_PARENT_SLOT);
                         mv.visitVarInsn(Opcodes.ALOAD, PRIMITIVE_SET_PARENT_SLOT);
                         mv.visitVarInsn(Opcodes.ALOAD, PRIMITIVE_SET_ENTITY_SLOT);
-                        mv.visitVarInsn(Opcodes.ILOAD, 2);
+                        // Inherited field: the child's expanded index does not match the parent's own
+                        // switch layout, so re-resolve the index by name against the parent reflector.
+                        mv.visitVarInsn(Opcodes.ALOAD, PRIMITIVE_SET_PARENT_SLOT);
+                        mv.visitLdcInsn(fieldName);
+                        mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, REFLECTOR, "fieldIndex", "(Ljava/lang/String;)I", true);
                         mv.visitVarInsn(valueLoadOpcode, 3);
                         mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, REFLECTOR, methodName, descriptor, true);
                         mv.visitInsn(Opcodes.RETURN);
@@ -1379,7 +1383,11 @@ public final class ReflectorClassGenerator {
                         mv.visitVarInsn(Opcodes.ASTORE, 4);
                         mv.visitVarInsn(Opcodes.ALOAD, 4);
                         mv.visitVarInsn(Opcodes.ALOAD, 3);
-                        mv.visitVarInsn(Opcodes.ILOAD, 2);
+                        // Inherited field: re-resolve the index by name against the parent reflector,
+                        // whose switch uses its own layout rather than the child's expanded index.
+                        mv.visitVarInsn(Opcodes.ALOAD, 4);
+                        mv.visitLdcInsn(fieldName);
+                        mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, REFLECTOR, "fieldIndex", "(Ljava/lang/String;)I", true);
                         mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, REFLECTOR, methodName, descriptor, true);
                         mv.visitInsn(returnOpcode);
                     } else {

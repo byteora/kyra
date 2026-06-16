@@ -8,6 +8,7 @@ import org.byteora.kyra.core.annotation.ReflectMetadataLevel;
 @TestReflectTag("base")
 public class BaseUser {
     private Long id;
+    private int level;
 
     public Long getId() {
         return id;
@@ -15,6 +16,14 @@ public class BaseUser {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public int getLevel() {
+        return level;
+    }
+
+    public void setLevel(int level) {
+        this.level = level;
     }
 
     public String baseLabel(String prefix) {
