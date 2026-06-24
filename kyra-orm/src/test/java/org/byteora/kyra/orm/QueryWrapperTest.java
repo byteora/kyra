@@ -140,6 +140,61 @@ class QueryWrapperTest {
     }
 
     @Test
+    void caseWhenShouldRenderMultipleBranches() {
+        TestUserTable users = TestUserTable.USERS;
+
+        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+                .select(Functions.caseWhen(Conditions.ge(users.AGE, 60), "senior")
+                        .when(Conditions.ge(users.AGE, 18), "adult")
+                        .orElse("minor")
+                        .as("age_group"))
+                .from(users)
+                .toDefinition(), DbType.MYSQL);
+
+        assertEquals(
+                "SELECT CASE WHEN age >= ? THEN ? WHEN age >= ? THEN ? ELSE ? END AS age_group FROM users",
+                request.sql());
+        assertArrayEquals(new Object[]{60, "senior", 18, "adult", "minor"}, request.args());
+    }
+
+    @Test
+    void caseWhenShouldSupportAndOrConditionsAndNoElse() {
+        TestUserTable users = TestUserTable.USERS;
+
+        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+                .select(Functions.caseWhen(
+                                Conditions.and(Conditions.ge(users.AGE, 18), Conditions.lt(users.AGE, 65)), "working")
+                        .when(Conditions.or(Conditions.lt(users.AGE, 18), Conditions.ge(users.AGE, 65)), "exempt")
+                        .end()
+                        .as("tax_status"))
+                .from(users)
+                .toDefinition(), DbType.POSTGRESQL);
+
+        assertEquals(
+                "SELECT CASE WHEN (age >= ? AND age < ?) THEN ? WHEN (age < ? OR age >= ?) THEN ? END AS tax_status FROM users",
+                request.sql());
+        assertArrayEquals(new Object[]{18, 65, "working", 18, 65, "exempt"}, request.args());
+    }
+
+    @Test
+    void ifElseShouldSupportAndOrCombinedConditions() {
+        TestUserTable users = TestUserTable.USERS;
+
+        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+                .select(Functions.ifElse(
+                        Conditions.and(Conditions.ge(users.AGE, 18), Conditions.lt(users.AGE, 65)),
+                        1,
+                        0).as("working_flag"))
+                .from(users)
+                .toDefinition(), DbType.MYSQL);
+
+        assertEquals(
+                "SELECT IF((age >= ? AND age < ?), ?, ?) AS working_flag FROM users",
+                request.sql());
+        assertArrayEquals(new Object[]{18, 65, 1, 0}, request.args());
+    }
+
+    @Test
     void conditionsShouldPropagateDbTypeToNestedExpressions() {
         TestUserTable users = TestUserTable.USERS;
 
