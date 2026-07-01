@@ -251,6 +251,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
             scanSpecIndexDirty = true;
         }
         collectMapperReflectSpecs(roundEnv);
+        registerScannedEntityReflectSpecs();
         registerBuiltinReflectSpecs();
         generateReflectors();
         if (!roundEnv.processingOver() && !reflectorInstallerGenerated) {
@@ -419,6 +420,25 @@ public class KyraOrmProcessor extends AbstractProcessor {
                 writeReflectorClassByName(entityType, registration.reflectorTypeName());
             } catch (IOException ex) {
                 messager.printMessage(Diagnostic.Kind.ERROR, "Failed to regenerate reflector: " + ex.getMessage(), entityType);
+            }
+        }
+    }
+
+    /**
+     * Scanned entities always get a {@code xxxTable} meta class via {@link #generateMeta()}, but a
+     * reflector is only produced for types present in {@link #reflectSpecs}. Mapper collection adds
+     * reflect specs for entities reachable from a mapper; an entity in a scanned {@code entity}
+     * package with no mapper would otherwise get a table but no reflector. Register every scanned
+     * entity as a reflect type here so its reflector is generated regardless of mapper presence.
+     */
+    private void registerScannedEntityReflectSpecs() {
+        for (ScanSpec scanSpec : scanSpecs) {
+            for (String entityTypeName : scanSpec.entityTypeNames) {
+                TypeElement entityType = elements.getTypeElement(entityTypeName);
+                if (entityType == null || !shouldCollectScannedType(entityType) || !isReflectTarget(entityType)) {
+                    continue;
+                }
+                registerReflectType(entityType, new HashSet<>());
             }
         }
     }
