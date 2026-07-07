@@ -30,8 +30,7 @@ public final class KyraJsonHttpMessageConverter extends AbstractGenericHttpMessa
     @Override
     public Object read(Type type, Class<?> contextClass, HttpInputMessage inputMessage) throws IOException, HttpMessageNotReadableException {
         try {
-            String json = new String(inputMessage.getBody().readAllBytes(), StandardCharsets.UTF_8);
-            return jsonMapper.fromJson(json, type);
+            return jsonMapper.fromBytes(inputMessage.getBody().readAllBytes(), type);
         } catch (JsonException ex) {
             throw new HttpMessageNotReadableException(ex.getMessage(), ex, inputMessage);
         }
@@ -45,8 +44,7 @@ public final class KyraJsonHttpMessageConverter extends AbstractGenericHttpMessa
     @Override
     protected void writeInternal(Object value, Type type, HttpOutputMessage outputMessage) throws IOException, HttpMessageNotWritableException {
         try {
-            byte[] body = jsonMapper.toJson(value).getBytes(StandardCharsets.UTF_8);
-            outputMessage.getBody().write(body);
+            outputMessage.getBody().write(jsonMapper.toBytes(value));
         } catch (JsonException ex) {
             throw new HttpMessageNotWritableException(ex.getMessage(), ex);
         }
