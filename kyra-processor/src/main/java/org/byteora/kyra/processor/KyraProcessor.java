@@ -1,6 +1,7 @@
 package org.byteora.kyra.processor;
 
 import org.byteora.kyra.core.annotation.Reflect;
+import org.byteora.kyra.core.runtime.GeneratedNames;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -28,6 +29,7 @@ import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Writer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -38,8 +40,6 @@ import java.util.Set;
 @SupportedAnnotationTypes("org.byteora.kyra.core.annotation.Reflect")
 @SupportedOptions("kyra.module")
 public class KyraProcessor extends AbstractProcessor {
-    private static final String GENERATED_PACKAGE_PREFIX = "gen";
-
     private Filer filer;
     private Messager messager;
     private Elements elements;
@@ -244,7 +244,7 @@ public class KyraProcessor extends AbstractProcessor {
                     .findFirst()
                     .orElse("kyra");
         }
-        return GENERATED_PACKAGE_PREFIX + "." + packageHashSegment(moduleName) + "." + toPascalCase(moduleName) + "ReflectorInstaller";
+        return GeneratedNames.installerPackageName(moduleName) + "." + toPascalCase(moduleName) + "ReflectorInstaller";
     }
 
     private String normalizeModuleName(String moduleName) {
@@ -410,30 +410,22 @@ public class KyraProcessor extends AbstractProcessor {
     }
 
     private String generatedModelPackageName(TypeElement typeElement) {
-        String packageName = GENERATED_PACKAGE_PREFIX + "." + packageHashSegment(packageNameOf(typeElement));
-        Element enclosingElement = typeElement.getEnclosingElement();
-        if (enclosingElement instanceof TypeElement enclosingType) {
-            packageName += "." + packageHashSegment(enclosingType.getQualifiedName().toString());
-        }
-        return packageName;
+        return GeneratedNames.packageName(packageNameOf(typeElement));
     }
 
     private String reflectorTypeName(TypeElement entityType, String suffix) {
-        return generatedModelPackageName(entityType) + "." + entityType.getSimpleName() + suffix;
+        return generatedModelPackageName(entityType) + "."
+                + GeneratedNames.simpleName(enclosingSimpleNames(entityType), entityType.getSimpleName().toString(), suffix);
     }
 
-    private String packageHashSegment(String packageName) {
-        long unsignedHash = Integer.toUnsignedLong(packageName.hashCode());
-        if (unsignedHash == 0L) {
-            return "a";
+    private List<String> enclosingSimpleNames(TypeElement typeElement) {
+        ArrayDeque<String> names = new ArrayDeque<>();
+        Element enclosing = typeElement.getEnclosingElement();
+        while (enclosing instanceof TypeElement enclosingType) {
+            names.addFirst(enclosingType.getSimpleName().toString());
+            enclosing = enclosingType.getEnclosingElement();
         }
-        StringBuilder builder = new StringBuilder();
-        while (unsignedHash > 0L) {
-            int digit = (int) (unsignedHash % 26L);
-            builder.append((char) ('a' + digit));
-            unsignedHash /= 26L;
-        }
-        return builder.reverse().toString();
+        return List.copyOf(names);
     }
 
     private void loadPersistedReflectorIndexIfNeeded() {

@@ -4,6 +4,7 @@ import org.byteora.kyra.orm.annotation.KyraScan;
 import org.byteora.kyra.orm.annotation.MapperCapability;
 import org.byteora.kyra.core.annotation.Reflect;
 import org.byteora.kyra.core.annotation.ReflectMetadataLevel;
+import org.byteora.kyra.core.runtime.GeneratedNames;
 import org.byteora.kyra.orm.dynamic.BindSqlNode;
 import org.byteora.kyra.orm.dynamic.ChooseSqlNode;
 import org.byteora.kyra.orm.dynamic.DynamicSqlNode;
@@ -57,6 +58,7 @@ import java.io.Writer;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -74,7 +76,6 @@ import java.util.stream.Collectors;
 @SupportedOptions({"kyra.mapper", "kyra.debug", "kyra.module"})
 public class KyraOrmProcessor extends AbstractProcessor {
     static final String SQL_EXECUTOR = "org.byteora.kyra.orm.runtime.SqlExecutor";
-    private static final String GENERATED_PACKAGE_PREFIX = "gen";
     private static final String LIST_TYPE = "java.util.List";
     private static final String PAGE_TYPE = "org.byteora.kyra.orm.query.Page";
     private static final String PAGING_TYPE = "org.byteora.kyra.orm.query.Paging";
@@ -778,7 +779,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
                     .findFirst()
                     .orElse("kyra");
         }
-        return GENERATED_PACKAGE_PREFIX + "." + packageHashSegment(moduleName) + "." + toPascalCase(moduleName) + "ReflectorInstaller";
+        return GeneratedNames.installerPackageName(moduleName) + "." + toPascalCase(moduleName) + "ReflectorInstaller";
     }
 
     private void emitReflectorRegistration(MethodVisitor mv, GeneratedSupportIndexStore.ReflectRegistration registration) {
@@ -821,7 +822,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
                     .findFirst()
                     .orElse("kyra");
         }
-        return GENERATED_PACKAGE_PREFIX + "." + packageHashSegment(moduleName) + "." + toPascalCase(moduleName) + "TableInstaller";
+        return GeneratedNames.installerPackageName(moduleName) + "." + toPascalCase(moduleName) + "TableInstaller";
     }
 
     private String normalizeModuleName(String moduleName) {
@@ -1858,12 +1859,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
     }
 
     private String generatedModelPackageName(TypeElement typeElement) {
-        String packageName = GENERATED_PACKAGE_PREFIX + "." + packageHashSegment(packageNameOf(typeElement));
-        Element enclosingElement = typeElement.getEnclosingElement();
-        if (enclosingElement instanceof TypeElement enclosingType) {
-            packageName += "." + packageHashSegment(enclosingType.getQualifiedName().toString());
-        }
-        return packageName;
+        return GeneratedNames.packageName(packageNameOf(typeElement));
     }
 
     private String reflectorTypeName(TypeElement entityType, String suffix) {
@@ -1877,25 +1873,21 @@ public class KyraOrmProcessor extends AbstractProcessor {
     }
 
     private String reflectorSimpleName(TypeElement entityType, String suffix) {
-        return entityType.getSimpleName() + suffix;
+        return GeneratedNames.simpleName(enclosingSimpleNames(entityType), entityType.getSimpleName().toString(), suffix);
     }
 
     private String tableSimpleName(TypeElement entityType) {
-        return entityType.getSimpleName() + "Table";
+        return reflectorSimpleName(entityType, "Table");
     }
 
-    private String packageHashSegment(String packageName) {
-        long unsignedHash = Integer.toUnsignedLong(packageName.hashCode());
-        if (unsignedHash == 0L) {
-            return "a";
+    private List<String> enclosingSimpleNames(TypeElement typeElement) {
+        ArrayDeque<String> names = new ArrayDeque<>();
+        Element enclosing = typeElement.getEnclosingElement();
+        while (enclosing instanceof TypeElement enclosingType) {
+            names.addFirst(enclosingType.getSimpleName().toString());
+            enclosing = enclosingType.getEnclosingElement();
         }
-        StringBuilder builder = new StringBuilder();
-        while (unsignedHash > 0L) {
-            int digit = (int) (unsignedHash % 26L);
-            builder.append((char) ('a' + digit));
-            unsignedHash /= 26L;
-        }
-        return builder.reverse().toString();
+        return List.copyOf(names);
     }
 
     private String resolveTableName(TypeElement entityType) {
