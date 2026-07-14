@@ -8,6 +8,7 @@ import org.byteora.kyra.core.runtime.FieldInfo;
 import org.byteora.kyra.core.runtime.ParameterInfo;
 import org.byteora.kyra.core.runtime.Reflector;
 import org.byteora.kyra.core.runtime.ReflectorRegistry;
+import tools.jackson.core.JacksonException;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.core.JsonParser;
 import tools.jackson.core.JsonToken;
@@ -118,7 +119,7 @@ final class DefaultJsonMapper implements JsonMapper {
                 writeRoot(generator, value);
             }
             return writer.toString();
-        } catch (IOException ex) {
+        } catch (JacksonException | IOException ex) {
             throw new JsonException("Failed to write JSON", ex);
         } finally {
             if (reuse) {
@@ -143,7 +144,7 @@ final class DefaultJsonMapper implements JsonMapper {
                 writeRoot(generator, value);
             }
             return builder.toByteArray();
-        } catch (IOException ex) {
+        } catch (JacksonException | IOException ex) {
             throw new JsonException("Failed to write JSON", ex);
         } finally {
             if (reuse) {
@@ -160,7 +161,7 @@ final class DefaultJsonMapper implements JsonMapper {
         // recycler buffers without closing the caller's stream.
         try (JsonGenerator generator = jsonFactory.createGenerator(ObjectWriteContext.empty(), out)) {
             writeRoot(generator, value);
-        } catch (IOException ex) {
+        } catch (JacksonException | IOException ex) {
             throw new JsonException("Failed to write JSON", ex);
         }
     }
@@ -195,7 +196,7 @@ final class DefaultJsonMapper implements JsonMapper {
             return readRoot(parser, type);
         } catch (JsonReadException ex) {
             throw ex.withRoot(typeName(Types.rawType(type)));
-        } catch (IOException ex) {
+        } catch (JacksonException | IOException ex) {
             throw new JsonException("Failed to read JSON", ex);
         }
     }
@@ -213,7 +214,7 @@ final class DefaultJsonMapper implements JsonMapper {
             return readRoot(parser, type);
         } catch (JsonReadException ex) {
             throw ex.withRoot(typeName(Types.rawType(type)));
-        } catch (IOException ex) {
+        } catch (JacksonException | IOException ex) {
             throw new JsonException("Failed to read JSON", ex);
         }
     }

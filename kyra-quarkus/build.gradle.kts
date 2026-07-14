@@ -13,12 +13,16 @@ java {
 
 dependencies {
     api(project(":kyra-orm"))
+    api(project(":kyra-json"))
 
     implementation(platform("io.quarkus:quarkus-bom:$quarkusVersion"))
     implementation("io.quarkus:quarkus-arc")
+    implementation("io.quarkus:quarkus-rest")
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testCompileOnly(project(":kyra-processor"))
+    testAnnotationProcessor(project(":kyra-processor"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

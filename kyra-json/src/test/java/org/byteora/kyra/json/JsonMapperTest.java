@@ -179,6 +179,19 @@ public class JsonMapperTest {
         assertTrue(exception.getMessage().contains("No Reflector registered"));
     }
 
+    @Test
+    void shouldWrapJacksonThreeSyntaxErrors() {
+        JsonMapper mapper = JsonMapper.builder().build();
+
+        JsonException stringError = assertThrows(JsonException.class,
+                () -> mapper.fromJson("{invalid}", User.class));
+        JsonException byteError = assertThrows(JsonException.class,
+                () -> mapper.fromBytes("{invalid}".getBytes(java.nio.charset.StandardCharsets.UTF_8), User.class));
+
+        assertEquals("Failed to read JSON", stringError.getMessage());
+        assertEquals("Failed to read JSON", byteError.getMessage());
+    }
+
     static final class Unregistered {
         public int value;
     }

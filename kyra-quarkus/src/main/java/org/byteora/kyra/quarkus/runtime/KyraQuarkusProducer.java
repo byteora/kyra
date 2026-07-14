@@ -8,6 +8,7 @@ import org.byteora.kyra.orm.runtime.SqlInterceptor;
 import org.byteora.kyra.orm.runtime.SqlPagingSupport;
 import org.byteora.kyra.orm.runtime.TypeConverter;
 import org.byteora.kyra.quarkus.QuarkusSqlExecutor;
+import org.byteora.kyra.json.JsonMapper;
 import io.quarkus.arc.DefaultBean;
 import jakarta.enterprise.context.Dependent;
 import jakarta.enterprise.inject.Instance;
@@ -18,6 +19,13 @@ import javax.sql.DataSource;
 
 @Dependent
 public class KyraQuarkusProducer {
+    @Produces
+    @Singleton
+    @DefaultBean
+    public JsonMapper jsonMapper() {
+        return JsonMapper.builder().build();
+    }
+
     @Produces
     @Singleton
     @DefaultBean
@@ -35,12 +43,15 @@ public class KyraQuarkusProducer {
     @Produces
     @Singleton
     @DefaultBean
-    public SqlExecutor sqlExecutor(DataSource dataSource,
+    public SqlExecutor sqlExecutor(Instance<DataSource> dataSource,
                                    Instance<TypeConverter> typeConverter,
                                    Instance<SqlPagingSupport> sqlPagingSupport,
                                    Instance<SqlGenerator> sqlGenerator,
                                    Instance<SqlInterceptor> interceptors) {
-        QuarkusSqlExecutor sqlExecutor = new QuarkusSqlExecutor(dataSource);
+        if (!dataSource.isResolvable()) {
+            throw new IllegalStateException("No DataSource bean is available for Kyra SqlExecutor");
+        }
+        QuarkusSqlExecutor sqlExecutor = new QuarkusSqlExecutor(dataSource.get());
         if (typeConverter.isResolvable()) {
             sqlExecutor.setTypeConverter(typeConverter.get());
         }

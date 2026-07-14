@@ -8,18 +8,22 @@ import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 
+import javax.sql.DataSource;
+
 @Startup
 @ApplicationScoped
 public class KyraQuarkusBootstrap {
+    private final Instance<DataSource> dataSource;
     private final Instance<SqlExecutor> sqlExecutor;
 
-    public KyraQuarkusBootstrap(Instance<SqlExecutor> sqlExecutor) {
+    public KyraQuarkusBootstrap(Instance<DataSource> dataSource, Instance<SqlExecutor> sqlExecutor) {
+        this.dataSource = dataSource;
         this.sqlExecutor = sqlExecutor;
     }
 
     @PostConstruct
     void init() {
-        if (sqlExecutor.isResolvable()) {
+        if (dataSource.isResolvable() && sqlExecutor.isResolvable()) {
             Sql.bind(sqlExecutor.get());
         }
     }

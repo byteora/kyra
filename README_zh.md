@@ -608,9 +608,28 @@ dependencies {
 - `SqlExecutor`
 - `SqlPagingSupport`
 - `SqlGenerator`
+- `JsonMapper`
+- Quarkus REST 的 `application/json`、`application/*+json` 请求/响应体处理
 - Mapper Bean 自动注册
 - 静态 `Sql` 入口绑定
 - `@KyraScan` 生成表/Reflector，并通过 registry 按需安装
+
+REST DTO 必须有生成的 Reflector。独立 DTO 添加 `@Reflect`；位于
+`@KyraScan(entity = {...})` 包中的实体已经自动覆盖。Provider 会保留端点的泛型类型，
+并直接使用 `JsonMapper` 的字节 API，不产生中间 `String`。
+
+默认 Mapper 是 Quarkus `@DefaultBean`，应用可以通过 CDI Producer 覆盖：
+
+```java
+@Produces
+@Singleton
+JsonMapper jsonMapper() {
+    return JsonMapper.builder()
+            .includeNulls(true)
+            .register(new MoneyJsonHandler())
+            .build();
+}
+```
 
 ### 用法
 

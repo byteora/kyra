@@ -602,9 +602,29 @@ When a `DataSource` is present, `kyra-quarkus` automatically provides:
 - `SqlExecutor`
 - `SqlPagingSupport`
 - `SqlGenerator`
+- `JsonMapper`
+- Quarkus REST JSON request/response body handling for `application/json` and `application/*+json`
 - Mapper bean auto-registration
 - Static `Sql` entry binding
 - `@KyraScan` generates tables/Reflectors and installs them via registry on demand
+
+REST DTOs must have a generated Reflector. Add `@Reflect` to standalone DTOs; entities in an
+`@KyraScan(entity = {...})` package are already covered. The provider preserves generic endpoint
+types and uses the byte-oriented `JsonMapper` APIs without an intermediate `String`.
+
+The default mapper is a Quarkus `@DefaultBean`, so an application can replace it with a custom CDI
+producer:
+
+```java
+@Produces
+@Singleton
+JsonMapper jsonMapper() {
+    return JsonMapper.builder()
+            .includeNulls(true)
+            .register(new MoneyJsonHandler())
+            .build();
+}
+```
 
 ### Usage
 

@@ -8,6 +8,7 @@ import org.byteora.kyra.orm.runtime.SqlInterceptor;
 import org.byteora.kyra.orm.runtime.SqlPagingSupport;
 import org.byteora.kyra.orm.runtime.TypeConverter;
 import org.byteora.kyra.quarkus.QuarkusSqlExecutor;
+import org.byteora.kyra.json.JsonMapper;
 import jakarta.enterprise.inject.spi.Bean;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.util.TypeLiteral;
@@ -23,9 +24,18 @@ import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 class KyraQuarkusProducerTest {
+    @Test
+    void shouldCreateDefaultJsonMapper() {
+        JsonMapper jsonMapper = new KyraQuarkusProducer().jsonMapper();
+
+        assertNotNull(jsonMapper);
+        assertEquals("{\"value\":1}", jsonMapper.toJson(java.util.Map.of("value", 1)));
+    }
+
     @Test
     void shouldCreateSqlExecutorWithInjectedCollaborators() {
         KyraQuarkusProducer producer = new KyraQuarkusProducer();
@@ -35,7 +45,7 @@ class KyraQuarkusProducerTest {
         SqlInterceptor interceptor = (context, request) -> request;
 
         SqlExecutor sqlExecutor = producer.sqlExecutor(
-                new NoopDataSource(),
+                new TestInstance<>(new NoopDataSource()),
                 new TestInstance<>(typeConverter),
                 new TestInstance<>(pagingSupport),
                 new TestInstance<>(sqlGenerator),
