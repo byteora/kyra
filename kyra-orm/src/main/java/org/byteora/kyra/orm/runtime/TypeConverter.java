@@ -2,12 +2,18 @@ package org.byteora.kyra.orm.runtime;
 
 import org.byteora.kyra.core.EnumSupport;
 import org.byteora.kyra.core.IEnum;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class TypeConverter {
+    private static final Logger logger = LoggerFactory.getLogger(TypeConverter.class);
+    private static final Set<String> WARNED_OBJECT_TARGETS = ConcurrentHashMap.newKeySet();
 
     private CustomTypeConverter[] customConverters = null;
 
@@ -34,6 +40,12 @@ public final class TypeConverter {
 
     public <T> T cast(ResultSet resultSet, int index, Class<T> targetType, String columnName, String fieldName) throws SQLException {
         try {
+            if (targetType == Object.class && !hasCustomConverter(targetType)) {
+                warnObjectFallback(columnName, fieldName);
+                @SuppressWarnings("unchecked")
+                T value = (T) resultSet.getObject(index);
+                return value;
+            }
             return doCast(resultSet, index, targetType);
         } catch (SqlExecutorException ex) {
             throw ex;
@@ -95,5 +107,26 @@ public final class TypeConverter {
         message.append(" from type ").append(sourceType)
                 .append(" to type ").append(targetType.getName());
         return new SqlExecutorException(message.toString(), cause);
+    }
+
+    private boolean hasCustomConverter(Class<?> targetType) {
+        if (customConverters == null) {
+            return false;
+        }
+        for (CustomTypeConverter converter : customConverters) {
+            if (converter.supports(targetType)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void warnObjectFallback(String columnName, String fieldName) {
+        String location = (columnName == null ? "<unknown column>" : columnName)
+                + " -> " + (fieldName == null ? "<scalar result>" : fieldName);
+        if (WARNED_OBJECT_TARGETS.add(location)) {
+            logger.warn("Result type resolved to Object for {}. Falling back to ResultSet.getObject(index); "
+                    + "declare the complete generic type with TypeRef to enable deterministic conversion.", location);
+        }
     }
 }

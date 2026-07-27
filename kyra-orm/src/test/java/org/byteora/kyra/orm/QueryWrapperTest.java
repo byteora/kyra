@@ -1,5 +1,7 @@
 package org.byteora.kyra.orm;
 
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -7,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.byteora.kyra.orm.runtime.*;
+import org.byteora.kyra.core.TypeRef;
 import org.junit.jupiter.api.Test;
 
 import org.byteora.kyra.orm.query.Column;
@@ -629,7 +632,27 @@ class QueryWrapperTest {
         assertThrows(SqlExecutorException.class, query::count);
     }
 
+    @Test
+    void queryWrapperShouldForwardTypeRefElementType() {
+        TestUserTable users = TestUserTable.USERS;
+        RecordingSqlExecutor sqlExecutor = new RecordingSqlExecutor();
+
+        List<GenericRow<String>> result = Wrapper.query(sqlExecutor)
+                .select(users.NAME)
+                .from(users)
+                .list(new TypeRef<GenericRow<String>>() {
+                });
+
+        assertEquals(List.of(), result);
+        ParameterizedType elementType = (ParameterizedType) sqlExecutor.lastElementType;
+        assertEquals(GenericRow.class, elementType.getRawType());
+        assertArrayEquals(new Type[]{String.class}, elementType.getActualTypeArguments());
+    }
+
     private static final class TestUser {
+    }
+
+    private record GenericRow<T>(T value) {
     }
 
     private static final class RecordingSqlExecutor implements SqlExecutor {
@@ -650,6 +673,7 @@ class QueryWrapperTest {
         private final List<TestUser> listResult = List.of(new TestUser(), new TestUser());
         private String lastSql;
         private Object[] lastArgs;
+        private Type lastElementType;
 
         @Override
         public <T> T selectOne(String sql, Object[] args, Class<T> resultType) {
@@ -666,6 +690,17 @@ class QueryWrapperTest {
                 return List.of(resultType.cast(1));
             }
             return listResult.stream().map(resultType::cast).toList();
+        }
+
+        @Override
+        public <T> List<T> selectList(String sql, Object[] args, Type elementType) {
+            this.lastSql = sql;
+            this.lastArgs = args;
+            this.lastElementType = elementType;
+            if (elementType instanceof ParameterizedType) {
+                return List.of();
+            }
+            return SqlExecutor.super.selectList(sql, args, elementType);
         }
 
         @Override

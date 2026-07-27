@@ -37,7 +37,7 @@ public interface JsonMapper {
 
     <T> T fromJson(String json, Type type);
 
-    default <T> T fromJson(String json, TypeRef<T> type) {
+    default <T> T fromJson(String json, org.byteora.kyra.core.TypeRef<T> type) {
         return fromJson(json, type.type());
     }
 
@@ -54,7 +54,7 @@ public interface JsonMapper {
         return fromJson(new String(json, StandardCharsets.UTF_8), type);
     }
 
-    default <T> T fromBytes(byte[] json, TypeRef<T> type) {
+    default <T> T fromBytes(byte[] json, org.byteora.kyra.core.TypeRef<T> type) {
         return fromBytes(json, type.type());
     }
 

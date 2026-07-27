@@ -324,6 +324,21 @@ var query = Wrapper.query()
 - `having(total.ge(2))`
 - `having(h -> h.geAlias("total", 2))`
 
+### 泛型返回类型
+
+查询行包含泛型参数时使用 `TypeRef`；普通结果类仍直接传入 `Class`：
+
+```java
+List<Pair<String, Long>> totals = Sql.query()
+        .select(key, Functions.count().as("value"))
+        .from(member)
+        .groupByAlias("key")
+        .list(new TypeRef<Pair<String, Long>>() {});
+```
+
+ORM 会在行映射过程中保留捕获的 `Type`，因此 record 的 `K`、`V` 会解析为
+`String`、`Long`，不会退化成 `Object`。
+
 ### join 快捷写法
 
 ```java

@@ -15,7 +15,6 @@ class SqlExecutionContextTest {
         };
         SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
                 .mapper(TestMapper.class, "selectById")
-                .resultType(String.class)
                 .annotations(annotations)
                 .build();
 
@@ -29,7 +28,6 @@ class SqlExecutionContextTest {
     void shouldReturnNullWhenAnnotationIsMissing() {
         SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
                 .mapper(TestMapper.class, "selectById")
-                .resultType(String.class)
                 .build();
 
         assertNull(context.getMapperMethodAnnotation("com.example.TestTag"));

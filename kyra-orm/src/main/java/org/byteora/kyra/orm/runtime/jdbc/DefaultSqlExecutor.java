@@ -5,6 +5,7 @@ import org.byteora.kyra.orm.runtime.DefaultSqlGenerator;
 import org.byteora.kyra.orm.runtime.DefaultSqlPagingSupport;
 import org.byteora.kyra.core.runtime.Reflector;
 import org.byteora.kyra.core.runtime.ReflectorRegistry;
+import org.byteora.kyra.core.runtime.RuntimeTypes;
 import org.byteora.kyra.orm.runtime.IdGenerator;
 import org.byteora.kyra.orm.runtime.RowMapper;
 import org.byteora.kyra.orm.runtime.SqlExecutionContext;
@@ -84,11 +85,21 @@ public class DefaultSqlExecutor implements SqlExecutor {
 
     @Override
     public <T> T selectOne(String sql, Object[] args, Class<T> resultType) {
-        return selectOne(sql, args, SqlExecutionContext.select(this, resultType), resultType);
+        return selectOne(sql, args, (Type) resultType);
+    }
+
+    @Override
+    public <T> T selectOne(String sql, Object[] args, Type resultType) {
+        return selectOne(sql, args, SqlExecutionContext.select(this), resultType);
     }
 
     @Override
     public <T> T selectOne(String sql, Object[] args, SqlExecutionContext context, Class<T> resultType) {
+        return selectOne(sql, args, context, (Type) resultType);
+    }
+
+    @Override
+    public <T> T selectOne(String sql, Object[] args, SqlExecutionContext context, Type resultType) {
         List<T> results = selectList(sql, args, context, resultType);
         if (results.isEmpty()) {
             return null;
@@ -101,13 +112,23 @@ public class DefaultSqlExecutor implements SqlExecutor {
 
     @Override
     public <T> List<T> selectList(String sql, Object[] args, Class<T> resultType) {
-        return selectList(sql, args, SqlExecutionContext.select(this, resultType), resultType);
+        return selectList(sql, args, (Type) resultType);
+    }
+
+    @Override
+    public <T> List<T> selectList(String sql, Object[] args, Type elementType) {
+        return selectList(sql, args, SqlExecutionContext.select(this), elementType);
     }
 
     @Override
     public <T> List<T> selectList(String sql, Object[] args, SqlExecutionContext context, Class<T> resultType) {
+        return selectList(sql, args, context, (Type) resultType);
+    }
+
+    @Override
+    public <T> List<T> selectList(String sql, Object[] args, SqlExecutionContext context, Type elementType) {
         SqlRequest request = applyInterceptors(context, new SqlRequest(sql, args));
-        return executeQuery(request.sql(), request.args(), context, createRowMapper(resultType, genericResultType(context, resultType)));
+        return executeQuery(request.sql(), request.args(), context, createRowMapper(elementType));
     }
 
     @Override
@@ -404,18 +425,16 @@ public class DefaultSqlExecutor implements SqlExecutor {
         return String.valueOf(value);
     }
 
-    private Type genericResultType(SqlExecutionContext context, Class<?> resultType) {
-        return context == null || context.getGenericResultType() == null ? resultType : context.getGenericResultType();
-    }
-
-    private <T> RowMapper<T> createRowMapper(Class<T> resultType, Type genericResultType) {
+    @SuppressWarnings("unchecked")
+    private <T> RowMapper<T> createRowMapper(Type elementType) {
+        Class<T> resultType = (Class<T>) RuntimeTypes.rawClass(elementType);
         if (Map.class.isAssignableFrom(resultType)) {
             return resultSet -> resultType.cast(readRowAsMap(resultSet));
         }
         Reflector<T> reflector = ReflectorRegistry.get(resultType);
         if(reflector == null)
             return resultSet -> typeConverter.cast(resultSet, 1, resultType);
-        return new GeneratedRowMapper<>(resultType, genericResultType, reflector, typeConverter);
+        return new GeneratedRowMapper<>(resultType, elementType, reflector, typeConverter);
     }
 
     private Map<String, Object> readRowAsMap(ResultSet resultSet) throws SQLException {

@@ -14,8 +14,12 @@ import com.example.simple.mapper.UserMapper;
 import com.example.simple.support.CapturingSqlExecutor;
 import com.example.simple.support.GeneratedTypeNames;
 import com.example.simple.support.NoopSqlExecutor;
+import org.byteora.kyra.core.TypeRef;
 import org.byteora.kyra.orm.runtime.AbstractMapper;
 import org.byteora.kyra.core.runtime.AnnotationMeta;
+import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Expressions;
+import org.byteora.kyra.orm.query.Wrapper;
 import org.byteora.kyra.orm.runtime.DbType;
 import org.byteora.kyra.orm.runtime.SqlExecutionContext;
 import org.byteora.kyra.orm.runtime.SqlExecutor;
@@ -144,6 +148,36 @@ class MapperFeaturesTest {
             assertEquals(2L, results.get(0).value());
             assertInstanceOf(String.class, results.get(0).key());
             assertInstanceOf(Long.class, results.get(0).value());
+
+            EntityTable<User> users = new EntityTable<>(User.class, "users") {
+                @Override
+                public org.byteora.kyra.orm.query.Column<User, ?> idColumn() {
+                    return null;
+                }
+
+                @Override
+                public String fieldName(String column) {
+                    return column;
+                }
+
+                @Override
+                public String columnName(String field) {
+                    return field;
+                }
+            };
+            List<Pair<String, Long>> wrapperResults = Wrapper.query(sqlExecutor)
+                    .select(
+                            Expressions.raw("name").as("key"),
+                            Expressions.raw("cast(count(*) as bigint)").as("value")
+                    )
+                    .from(users)
+                    .groupBy(Expressions.raw("name"))
+                    .list(new TypeRef<Pair<String, Long>>() {
+                    });
+
+            assertEquals(2, wrapperResults.size());
+            assertInstanceOf(String.class, wrapperResults.getFirst().key());
+            assertInstanceOf(Long.class, wrapperResults.getFirst().value());
         }
     }
 

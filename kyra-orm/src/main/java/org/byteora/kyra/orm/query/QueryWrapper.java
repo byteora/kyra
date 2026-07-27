@@ -1,11 +1,13 @@
 package org.byteora.kyra.orm.query;
 
+import org.byteora.kyra.core.TypeRef;
 import org.byteora.kyra.orm.runtime.SqlExecutionContext;
 import org.byteora.kyra.orm.runtime.SqlExecutor;
 import org.byteora.kyra.orm.runtime.SqlRequest;
 import org.byteora.kyra.orm.runtime.SqlExecutorException;
 import org.byteora.kyra.orm.xml.SqlCommandType;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -171,12 +173,30 @@ public final class QueryWrapper {
     }
 
     public <T> T one(Class<T> resultType) {
+        return oneInternal(resultType);
+    }
+
+    public <T> T one(TypeRef<T> resultType) {
+        Objects.requireNonNull(resultType, "resultType");
+        return oneInternal(resultType.type());
+    }
+
+    private <T> T oneInternal(Type resultType) {
         SqlExecutor sqlExecutor = requireSqlExecutor();
         SqlRequest request = renderQuery(sqlExecutor);
         return sqlExecutor.selectOne(request.sql(), request.args(), resultType);
     }
 
     public <T> List<T> list(Class<T> resultType) {
+        return listInternal(resultType);
+    }
+
+    public <T> List<T> list(TypeRef<T> resultType) {
+        Objects.requireNonNull(resultType, "resultType");
+        return listInternal(resultType.type());
+    }
+
+    private <T> List<T> listInternal(Type resultType) {
         SqlExecutor sqlExecutor = requireSqlExecutor();
         SqlRequest request = renderQuery(sqlExecutor);
         return sqlExecutor.selectList(request.sql(), request.args(), resultType);
@@ -190,17 +210,30 @@ public final class QueryWrapper {
         SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
                 .sqlExecutor(sqlExecutor)
                 .mapper(QueryWrapper.class, "count")
-                .resultType(Long.class)
                 .countRequest(countRequest)
                 .build();
         return sqlExecutor.getSqlPagingSupport().count(sqlExecutor, context, request.sql(), request.args());
     }
 
     public <T> Page<T> page(int current, int size, Class<T> resultType) {
-        return page(Paging.of(current, size), resultType);
+        return pageInternal(Paging.of(current, size), resultType);
+    }
+
+    public <T> Page<T> page(int current, int size, TypeRef<T> resultType) {
+        Objects.requireNonNull(resultType, "resultType");
+        return pageInternal(Paging.of(current, size), resultType.type());
     }
 
     public <T> Page<T> page(Paging paging, Class<T> resultType) {
+        return pageInternal(paging, resultType);
+    }
+
+    public <T> Page<T> page(Paging paging, TypeRef<T> resultType) {
+        Objects.requireNonNull(resultType, "resultType");
+        return pageInternal(paging, resultType.type());
+    }
+
+    private <T> Page<T> pageInternal(Paging paging, Type resultType) {
         var sqlExecutor = requireSqlExecutor();
         QueryDefinition definition = toDefinition();
         SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(definition, sqlExecutor.getDbType());
@@ -208,7 +241,6 @@ public final class QueryWrapper {
         SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
                 .sqlExecutor(sqlExecutor)
                 .mapper(QueryWrapper.class, "page")
-                .resultType(resultType)
                 .paging(paging)
                 .countRequest(countRequest)
                 .build();

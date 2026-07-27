@@ -4,7 +4,6 @@ import org.byteora.kyra.core.runtime.AnnotationMeta;
 import org.byteora.kyra.orm.query.Paging;
 import org.byteora.kyra.orm.xml.SqlCommandType;
 
-import java.lang.reflect.Type;
 import java.util.Objects;
 
 public final class SqlExecutionContext {
@@ -14,8 +13,6 @@ public final class SqlExecutionContext {
     private final Class<?> mapperType;
     private final String statementId;
     private final SqlCommandType commandType;
-    private final Class<?> resultType;
-    private final Type genericResultType;
     private final Paging paging;
     private final SqlRequest countRequest;
     private final AnnotationMeta[] mapperMethodAnnotations;
@@ -26,8 +23,6 @@ public final class SqlExecutionContext {
         this.mapperType = builder.mapperType;
         this.statementId = builder.statementId;
         this.commandType = builder.commandType;
-        this.resultType = builder.resultType;
-        this.genericResultType = builder.genericResultType == null ? builder.resultType : builder.genericResultType;
         this.paging = builder.paging;
         this.countRequest = builder.countRequest;
         // The supplied array originates from generated mapper code and is treated as immutable, so it
@@ -42,8 +37,8 @@ public final class SqlExecutionContext {
         return new Builder(commandType);
     }
 
-    public static SqlExecutionContext select(SqlExecutor sqlExecutor, Class<?> resultType) {
-        return builder(SqlCommandType.SELECT).sqlExecutor(sqlExecutor).resultType(resultType).build();
+    public static SqlExecutionContext select(SqlExecutor sqlExecutor) {
+        return builder(SqlCommandType.SELECT).sqlExecutor(sqlExecutor).build();
     }
 
     public static SqlExecutionContext update(SqlExecutor sqlExecutor) {
@@ -62,7 +57,6 @@ public final class SqlExecutionContext {
         return builder(commandType)
                 .sqlExecutor(sqlExecutor)
                 .mapper(mapperType, statementId)
-                .resultType(resultType, genericResultType)
                 .paging(paging)
                 .countRequest(countRequest)
                 .annotations(mapperMethodAnnotations)
@@ -87,14 +81,6 @@ public final class SqlExecutionContext {
 
     public SqlCommandType getCommandType() {
         return commandType;
-    }
-
-    public Class<?> getResultType() {
-        return resultType;
-    }
-
-    public Type getGenericResultType() {
-        return genericResultType;
     }
 
     public Paging getPaging() {
@@ -135,8 +121,6 @@ public final class SqlExecutionContext {
         private SqlExecutor sqlExecutor;
         private Class<?> mapperType;
         private String statementId;
-        private Class<?> resultType;
-        private Type genericResultType;
         private Paging paging;
         private SqlRequest countRequest;
         private AnnotationMeta[] mapperMethodAnnotations = NO_ANNOTATIONS;
@@ -154,18 +138,6 @@ public final class SqlExecutionContext {
         public Builder mapper(Class<?> mapperType, String statementId) {
             this.mapperType = mapperType;
             this.statementId = statementId;
-            return this;
-        }
-
-        public Builder resultType(Class<?> resultType) {
-            this.resultType = resultType;
-            this.genericResultType = resultType;
-            return this;
-        }
-
-        public Builder resultType(Class<?> resultType, Type genericResultType) {
-            this.resultType = resultType;
-            this.genericResultType = genericResultType;
             return this;
         }
 

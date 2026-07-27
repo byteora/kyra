@@ -9,7 +9,6 @@ import org.byteora.kyra.orm.query.Page;
 import org.byteora.kyra.orm.query.Paging;
 import org.byteora.kyra.orm.xml.SqlCommandType;
 
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
@@ -42,14 +41,12 @@ public final class GeneratedMapperSupport {
                                   Type resultType) {
         Map<String, Object> params = MapperParameters.build(parameterNames, parameterValues);
         BoundSql boundSql = DynamicSqlRenderer.render(sqlNode, params);
-        Class<T> resultClass = rawClass(resultType);
         SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
                 .sqlExecutor(sqlExecutor)
                 .mapper(mapperType, statementId)
-                .resultType(resultClass, resultType)
                 .annotations(mapperMethodAnnotations)
                 .build();
-        return sqlExecutor.selectOne(boundSql.getSql(), DynamicSqlArgumentResolver.resolve(boundSql), context, resultClass);
+        return sqlExecutor.selectOne(boundSql.getSql(), DynamicSqlArgumentResolver.resolve(boundSql), context, resultType);
     }
 
     public static <T> List<T> selectList(SqlExecutor sqlExecutor,
@@ -73,14 +70,12 @@ public final class GeneratedMapperSupport {
                                          Type resultType) {
         Map<String, Object> params = MapperParameters.build(parameterNames, parameterValues);
         BoundSql boundSql = DynamicSqlRenderer.render(sqlNode, params);
-        Class<T> resultClass = rawClass(resultType);
         SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
                 .sqlExecutor(sqlExecutor)
                 .mapper(mapperType, statementId)
-                .resultType(resultClass, resultType)
                 .annotations(mapperMethodAnnotations)
                 .build();
-        return sqlExecutor.selectList(boundSql.getSql(), DynamicSqlArgumentResolver.resolve(boundSql), context, resultClass);
+        return sqlExecutor.selectList(boundSql.getSql(), DynamicSqlArgumentResolver.resolve(boundSql), context, resultType);
     }
 
     public static <T> Page<T> selectPage(SqlExecutor sqlExecutor,
@@ -106,11 +101,9 @@ public final class GeneratedMapperSupport {
                                          Type resultType) {
         Map<String, Object> params = MapperParameters.build(parameterNames, parameterValues);
         BoundSql boundSql = DynamicSqlRenderer.render(sqlNode, params);
-        Class<T> resultClass = rawClass(resultType);
         SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
                 .sqlExecutor(sqlExecutor)
                 .mapper(mapperType, statementId)
-                .resultType(resultClass, resultType)
                 .paging(paging)
                 .annotations(mapperMethodAnnotations)
                 .build();
@@ -120,7 +113,7 @@ public final class GeneratedMapperSupport {
                 boundSql.getSql(),
                 DynamicSqlArgumentResolver.resolve(boundSql),
                 paging,
-                resultClass
+                resultType
         );
     }
 
@@ -142,14 +135,4 @@ public final class GeneratedMapperSupport {
         return sqlExecutor.update(boundSql.getSql(), DynamicSqlArgumentResolver.resolve(boundSql), context);
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> Class<T> rawClass(Type type) {
-        if (type instanceof Class<?> clazz) {
-            return (Class<T>) clazz;
-        }
-        if (type instanceof ParameterizedType parameterized && parameterized.getRawType() instanceof Class<?> raw) {
-            return (Class<T>) raw;
-        }
-        throw new SqlExecutorException("Unsupported mapper result type: " + type);
-    }
 }

@@ -6,12 +6,19 @@ import org.byteora.kyra.orm.runtime.dialect.PageClause;
 import org.byteora.kyra.orm.runtime.dialect.RenderContext;
 import org.byteora.kyra.orm.runtime.dialect.SqlDialects;
 
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.List;
 
 public class DefaultSqlPagingSupport implements SqlPagingSupport {
     @Override
     public <T> Page<T> page(SqlExecutor sqlExecutor, SqlExecutionContext context, String sql, Object[] args, Paging paging, Class<T> elementType) {
+        return page(sqlExecutor, context, sql, args, paging, (Type) elementType);
+    }
+
+    @Override
+    public <T> Page<T> page(SqlExecutor sqlExecutor, SqlExecutionContext context, String sql, Object[] args,
+                            Paging paging, Type elementType) {
         int current = paging == null || paging.getCurrent() == null || paging.getCurrent() < 1 ? 1 : paging.getCurrent();
         int size = paging == null || paging.getSize() == null || paging.getSize() < 1 ? 10 : paging.getSize();
         long total = count(sqlExecutor, context, sql, args);

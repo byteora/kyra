@@ -6,6 +6,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
+import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -32,6 +33,31 @@ public final class RuntimeTypes {
     public static Type typeVariable(String name, Type... bounds) {
         Type[] resolvedBounds = bounds == null || bounds.length == 0 ? new Type[]{Object.class} : bounds.clone();
         return new SimpleTypeVariable(name, resolvedBounds);
+    }
+
+    /**
+     * Returns the raw class represented by a reflective type.
+     */
+    public static Class<?> rawClass(Type type) {
+        Objects.requireNonNull(type, "type");
+        if (type instanceof Class<?> clazz) {
+            return clazz;
+        }
+        if (type instanceof ParameterizedType parameterizedType) {
+            return rawClass(parameterizedType.getRawType());
+        }
+        if (type instanceof GenericArrayType arrayType) {
+            return Array.newInstance(rawClass(arrayType.getGenericComponentType()), 0).getClass();
+        }
+        if (type instanceof WildcardType wildcardType) {
+            Type[] upperBounds = wildcardType.getUpperBounds();
+            return rawClass(upperBounds.length == 0 ? Object.class : upperBounds[0]);
+        }
+        if (type instanceof TypeVariable<?> typeVariable) {
+            Type[] bounds = typeVariable.getBounds();
+            return rawClass(bounds.length == 0 ? Object.class : bounds[0]);
+        }
+        throw new IllegalArgumentException("Unsupported type: " + type);
     }
 
     private record SimpleParameterizedType(Class<?> rawType, Type ownerType, Type[] actualTypeArguments) implements ParameterizedType {

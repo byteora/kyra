@@ -322,6 +322,22 @@ Supported:
 - `having(total.ge(2))`
 - `having(h -> h.geAlias("total", 2))`
 
+### Generic Result Types
+
+Use `TypeRef` when a query row has generic type arguments. `Class` remains the concise option for
+ordinary result classes:
+
+```java
+List<Pair<String, Long>> totals = Sql.query()
+        .select(key, Functions.count().as("value"))
+        .from(member)
+        .groupByAlias("key")
+        .list(new TypeRef<Pair<String, Long>>() {});
+```
+
+The ORM carries the captured `Type` through row mapping, so record components such as `K` and `V`
+resolve to `String` and `Long` instead of falling back to `Object`.
+
 ### Join Shortcuts
 
 ```java

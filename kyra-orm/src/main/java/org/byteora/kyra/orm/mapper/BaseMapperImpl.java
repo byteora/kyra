@@ -123,7 +123,6 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
         SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
                 .sqlExecutor(sqlExecutor)
                 .mapper(getClass(), "count")
-                .resultType(Long.class)
                 .countRequest(countRequest)
                 .build();
         return sqlExecutor.getSqlPagingSupport().count(sqlExecutor, context, request.sql(), request.args());
@@ -149,7 +148,6 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
         SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
                 .sqlExecutor(sqlExecutor)
                 .mapper(getClass(), "page")
-                .resultType(entityClass)
                 .paging(paging)
                 .countRequest(countRequest)
                 .build();
