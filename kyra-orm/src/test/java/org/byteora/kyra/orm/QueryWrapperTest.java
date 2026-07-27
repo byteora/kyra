@@ -311,6 +311,25 @@ class QueryWrapperTest {
     }
 
     @Test
+    void whereShouldRenderBeforeGroupBy() {
+        TestUserTable users = TestUserTable.USERS;
+        NamedSqlExpression ageGroup = Functions.ifElse(Conditions.ge(users.AGE, 18), "adult", "minor").as("age_group");
+
+        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+                .select(ageGroup, Functions.count().as("total"))
+                .from(users)
+                .where(users.ID.ge(10L), users.ID.lt(20L))
+                .groupByAlias("age_group")
+                .toDefinition(), DbType.MYSQL);
+
+        assertEquals(
+                "SELECT IF(age >= ?, ?, ?) AS age_group, COUNT(*) AS total FROM users "
+                        + "WHERE (id >= ? AND id < ?) GROUP BY age_group",
+                request.sql());
+        assertArrayEquals(new Object[]{18, "adult", "minor", 10L, 20L}, request.args());
+    }
+
+    @Test
     void havingShouldSupportAliasReference() {
         TestUserTable users = TestUserTable.USERS;
         NamedSqlExpression total = Functions.count().as("total");

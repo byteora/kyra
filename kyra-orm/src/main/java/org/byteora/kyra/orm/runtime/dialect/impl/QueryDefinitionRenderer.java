@@ -38,6 +38,7 @@ public final class QueryDefinitionRenderer implements QueryRenderer {
         for (JoinItem join : queryModel.joinItems()) {
             appendJoinItem(join, context);
         }
+        appendWhere(queryModel.whereClause(), context);
         if (!queryModel.groupByItems().isEmpty()) {
             sql.append(" GROUP BY ");
             for (int i = 0; i < queryModel.groupByItems().size(); i++) {
@@ -47,7 +48,6 @@ public final class QueryDefinitionRenderer implements QueryRenderer {
                 appendGroupByItem(queryModel.groupByItems().get(i), context);
             }
         }
-        appendWhere(queryModel.whereClause(), context);
         appendHaving(queryModel.havingClause(), context);
         appendOrder(queryModel.orderItems(), context);
         context.dialect().paging().render(new PageClause(
