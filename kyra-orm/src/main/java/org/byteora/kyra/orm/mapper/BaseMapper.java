@@ -1,9 +1,11 @@
 package org.byteora.kyra.orm.mapper;
 
+import org.byteora.kyra.orm.query.Condition;
 import org.byteora.kyra.orm.query.Page;
 import org.byteora.kyra.orm.query.Paging;
 import org.byteora.kyra.orm.query.UpdateWrapper;
 import org.byteora.kyra.orm.query.WhereWrapper;
+import org.byteora.kyra.orm.query.Wrapper;
 
 import java.io.Serializable;
 import java.util.Collection;
@@ -14,11 +16,29 @@ public interface BaseMapper<T> {
 
     List<T> selectByIds(Collection<? extends Serializable> ids);
 
-    List<T> selectList(WhereWrapper query);
+    List<T> list(WhereWrapper query);
 
-    T selectOne(WhereWrapper query);
+    default List<T> list(Condition... conditions) {
+        return list(Wrapper.where().where(conditions));
+    }
+
+    T one(WhereWrapper query);
+
+    default T one(Condition... conditions) {
+        return one(Wrapper.where().where(conditions));
+    }
 
     long count(WhereWrapper query);
+
+    default long count(Condition... conditions) {
+        return count(Wrapper.where().where(conditions));
+    }
+
+    boolean exists(WhereWrapper query);
+
+    default boolean exists(Condition... conditions) {
+        return exists(Wrapper.where().where(conditions));
+    }
 
     Page<T> page(Paging paging, WhereWrapper query);
 

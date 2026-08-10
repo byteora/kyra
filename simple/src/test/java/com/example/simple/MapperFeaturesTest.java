@@ -17,9 +17,9 @@ import com.example.simple.support.NoopSqlExecutor;
 import org.byteora.kyra.core.TypeRef;
 import org.byteora.kyra.orm.runtime.AbstractMapper;
 import org.byteora.kyra.core.runtime.AnnotationMeta;
+import org.byteora.kyra.orm.query.DSLContext;
 import org.byteora.kyra.orm.query.Table;
 import org.byteora.kyra.orm.query.Expressions;
-import org.byteora.kyra.orm.query.Wrapper;
 import org.byteora.kyra.orm.runtime.DbType;
 import org.byteora.kyra.orm.runtime.SqlExecutionContext;
 import org.byteora.kyra.orm.runtime.SqlExecutor;
@@ -165,15 +165,16 @@ class MapperFeaturesTest {
                     return field;
                 }
             };
-            List<Pair<String, Long>> wrapperResults = Wrapper.query(sqlExecutor)
+            DSLContext dsl = new DSLContext(sqlExecutor);
+            List<Pair<String, Long>> wrapperResults = dsl.query(new TypeRef<Pair<String, Long>>() {
+                    })
                     .select(
                             Expressions.raw("name").as("key"),
                             Expressions.raw("cast(count(*) as bigint)").as("value")
                     )
                     .from(users)
                     .groupBy(Expressions.raw("name"))
-                    .list(new TypeRef<Pair<String, Long>>() {
-                    });
+                    .list();
 
             assertEquals(2, wrapperResults.size());
             assertInstanceOf(String.class, wrapperResults.getFirst().key());

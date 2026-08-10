@@ -11,7 +11,7 @@
 - **Compile-time code generation** — `@Reflect` / `@KyraScan` generate `XxxReflector`, `XxxTable`, and `XxxMapperImpl`; no runtime reflection.
 - **MyBatis-style XML mappers** — `select / insert / update / delete` with dynamic `where / if / foreach` tags and `#{...}` parameter binding.
 - **Type-safe Wrapper DSL** — fluent conditions, joins, grouping, aliases, and pagination.
-- **Generic CRUD** — `BaseMapper` and static `Sql` entry points cover everyday operations without writing SQL.
+- **Generic CRUD** — `BaseMapper` and an injected or explicitly constructed `DSLContext` cover everyday operations without writing SQL.
 - **Reflection-free JSON** — `kyra-json` databinds through the generated `Reflector`, using Jackson core only for tokens.
 - **Dependency-free Excel** — `kyra-excel` reads and writes `.xlsx` with a fluent API and no third-party dependencies.
 - **Framework integrations** — auto-configuration for Spring Boot and Quarkus.
@@ -22,7 +22,7 @@
 | Module | Artifact | Description |
 | --- | --- | --- |
 | Core runtime | `kyra-core` | `@Reflect`, `Reflector`, `ReflectorRegistry`, shared runtime |
-| ORM | `kyra-orm` | SQL session, `BaseMapper`, Wrapper DSL, dialect SPI |
+| ORM | `kyra-orm` | SQL execution, `DSLContext`, `BaseMapper`, Wrapper DSL, dialect SPI |
 | JSON | `kyra-json` | Reflection-free JSON databind |
 | Excel | `kyra-excel` | Dependency-free `.xlsx` read/write engine |
 | Reflect processor | `kyra-processor` | Generates `Reflector` and JSON installers |
@@ -43,7 +43,7 @@
   - [Mapper Interface](#6-mapper-interface)
   - [XML Mapper](#7-xml-mapper)
 - [Runtime Usage](#runtime-usage)
-- [Wrapper DSL](#wrapper-dsl)
+- [Query API](#query-api)
 - [`BaseMapper` Capabilities](#basemapper-capabilities)
 - [`@MapperCapability`](#mappercapability)
 - [SQL Dialect SPI](#sql-dialect-spi)
@@ -249,7 +249,7 @@ public interface UserMapper {
 
 ## Runtime Usage
 
-### Using `SqlSession` Directly
+### Using the ORM Directly
 
 ```java
 JdbcDataSource dataSource = new JdbcDataSource();
@@ -257,8 +257,9 @@ dataSource.setURL("jdbc:h2:mem:test;MODE=MySQL;DB_CLOSE_DELAY=-1");
 dataSource.setUser("sa");
 dataSource.setPassword("");
 
-SqlSession sqlSession = new DefaultSqlSession(dataSource);
-UserMapper userMapper = new UserMapperImpl(sqlSession);
+SqlExecutor sqlExecutor = new DefaultSqlExecutor(dataSource);
+DSLContext dsl = new DSLContext(sqlExecutor);
+UserMapper userMapper = new UserMapperImpl(sqlExecutor);
 
 User user = userMapper.selectById(1L);
 ```
@@ -275,14 +276,15 @@ logging:
     org.byteora.kyra.orm.runtime.jdbc.DefaultSqlExecutor: DEBUG
 ```
 
-## Wrapper DSL
+## Query API
 
-Besides XML, you can build queries with the Wrapper DSL directly.
+Kyra provides three query layers. Use generated `BaseMapper` methods for entity CRUD, `dsl.from(table)`
+for concise entity queries, and `dsl.query(Class/TypeRef)` for projections and fully composed queries.
 
-### Conditional Query
+### 1. `BaseMapper` Entity CRUD
 
 ```java
-List<User> users = userMapper.selectList(
+List<User> users = userMapper.list(
         Wrapper.where()
                 .where(
                         UserTable.TABLE.age.ge(18),
@@ -290,27 +292,44 @@ List<User> users = userMapper.selectList(
                 )
                 .orderBy(order -> order.asc(UserTable.TABLE.id))
 );
+
+User user = userMapper.one(UserTable.TABLE.id.eq(1L));
 ```
 
-### Pagination
+`BaseMapper` also provides `count`, `exists`, `page`, `insert`, `updateById`, `update`, and delete
+operations.
+
+### 2. `DSLContext.from(table)` Entity Queries
+
+The table supplies the result type, so terminal methods need no `Class` or `TypeRef` argument:
 
 ```java
-Paging paging = Paging.of(1, 10);
-Page<User> page = userMapper.selectPage(paging, 18, 30);
+User user = dsl.from(UserTable.TABLE)
+        .where(UserTable.TABLE.id.eq(1L))
+        .one();
+List<User> users = dsl.from(UserTable.TABLE).list();
+Page<User> page = dsl.from(UserTable.TABLE).page(1, 10);
+long total = dsl.from(UserTable.TABLE).count();
+boolean anyAdults = dsl.from(UserTable.TABLE)
+        .where(UserTable.TABLE.age.ge(18))
+        .exists();
 ```
 
-### Alias-aware DSL
+### 3. `DSLContext.query(resultType)` Projection Queries
+
+Choose the result type when the query starts; terminal methods are always parameterless:
 
 ```java
 var total = Functions.count().as("total");
 var ageGroup = Functions.ifElse(UserTable.TABLE.age.ge(18), "adult", "minor").as("age_group");
 
-var query = Wrapper.query()
+List<UserSummary> summaries = dsl.query(UserSummary.class)
         .select(ageGroup, total)
         .from(UserTable.TABLE)
         .groupBy(ageGroup)
         .having(total.ge(2))
-        .orderBy(order -> order.desc(total));
+        .orderBy(order -> order.desc(total))
+        .list();
 ```
 
 Supported:
@@ -328,11 +347,11 @@ Use `TypeRef` when a query row has generic type arguments. `Class` remains the c
 ordinary result classes:
 
 ```java
-List<Pair<String, Long>> totals = Sql.query()
+List<Pair<String, Long>> totals = dsl.query(new TypeRef<Pair<String, Long>>() {})
         .select(key, Functions.count().as("value"))
         .from(member)
         .groupByAlias("key")
-        .list(new TypeRef<Pair<String, Long>>() {});
+        .list();
 ```
 
 The ORM carries the captured `Type` through row mapping, so record components such as `K` and `V`
@@ -344,7 +363,7 @@ resolve to `String` and `Long` instead of falling back to `Object`.
 var users = UserTable.TABLE;
 var manager = UserTable.TABLE.alias("manager");
 
-var query = Wrapper.query()
+var query = dsl.query(UserSummary.class)
         .select(users.name, manager.name)
         .from(users)
         .leftJoin(manager, on -> on.eq(users.id, manager.id));
@@ -361,8 +380,8 @@ users.age.ge(manager.age)
 
 The current example covers:
 
-- `selectOne`
-- `selectList`
+- `one`
+- `list`
 - `count`
 - `insert(T)`
 - `insert(List<T>)`
@@ -384,13 +403,13 @@ public interface UpdateMapper<T> {
 
 @MapperCapability(UpdateMapper.class)
 public class UpdateMapperImpl<T> extends AbstractMapper<T> implements UpdateMapper<T> {
-    public UpdateMapperImpl(SqlSession sqlSession, Class<?> type) {
-        super(sqlSession, type);
+    public UpdateMapperImpl(SqlExecutor sqlExecutor, Class<T> type) {
+        super(sqlExecutor, type);
     }
 
     @Override
     public int updateNameById(Long id, String name) {
-        return sqlSession.update(
+        return sqlExecutor.update(
                 "update users set name = ? where id = ?",
                 new Object[]{name, id}
         );
@@ -400,9 +419,9 @@ public class UpdateMapperImpl<T> extends AbstractMapper<T> implements UpdateMapp
 
 Supported capability constructors:
 
-- `(SqlSession)`
-- `(SqlSession, Class<?>)`
-- `(SqlSession, Table<?>)`
+- `(SqlExecutor)`
+- `(SqlExecutor, Class<?>)`
+- `(SqlExecutor, Table<?>)`
 
 ## SQL Dialect SPI
 
@@ -450,55 +469,41 @@ dependencies {
 
 When a `DataSource` is present, `kyra-spring-boot` automatically provides:
 
-- `SqlSessionFactory`
-- Prototype-scoped `SqlSession`
+- `SqlExecutor`
+- `DSLContext`
 - `SqlPagingSupport`
 - `SqlGenerator`
 - Mapper bean registrar
-- Static `Sql` entry binding
 - If Spring Web is on the classpath: `JsonMapper` and HTTP JSON `HttpMessageConverter` based on `kyra-json`
 
-### Static Query Entry
+### Injected Query Entry
 
 ```java
-User user = Sql.query()
+@Autowired
+DSLContext dsl;
+
+User user = dsl.query(User.class)
         .selectAll()
         .from(UserTable.TABLE)
         .orderBy(order -> order.asc(UserTable.TABLE.id))
         .limit(1)
-        .one(User.class);
+        .one();
 ```
 
-Shorter entry points:
+For entity queries, prefer the shorter table-first layer:
 
 ```java
-User user = Sql.from(UserTable.TABLE)
+User user = dsl.from(UserTable.TABLE)
         .where(UserTable.TABLE.id.eq(1L))
-        .one(User.class);
+        .one();
 ```
 
-```java
-User user = Sql.select(UserTable.TABLE, UserTable.TABLE.id.eq(1L));
-List<User> users = Sql.selectList(
-        UserTable.TABLE,
-        UserTable.TABLE.age.ge(18),
-        UserTable.TABLE.name.isNotNull()
-);
-```
-
-Notes:
-
-- `Sql.query()` — start from an empty query; good for complex DSL composition
-- `Sql.from(table)` — defaults to `selectAll().from(table)`; quick single-table queries
-- `Sql.select(table, conditions...)` — single-row semantics; internally calls `.one(table.type())`
-- `Sql.selectList(table, conditions...)` — list semantics; internally calls `.list(table.type())`
-
-Static CRUD is also available:
+CRUD uses the same instance:
 
 ```java
-Sql.insert(user);
-Sql.updateById(user);
-Sql.deleteById(User.class, 1L);
+dsl.insert(user);
+dsl.updateById(user);
+dsl.deleteById(User.class, 1L);
 ```
 
 ## Excel
@@ -616,12 +621,12 @@ dependencies {
 When a `DataSource` is present, `kyra-quarkus` automatically provides:
 
 - `SqlExecutor`
+- `DSLContext`
 - `SqlPagingSupport`
 - `SqlGenerator`
 - `JsonMapper`
 - Quarkus REST JSON request/response body handling for `application/json` and `application/*+json`
 - Mapper bean auto-registration
-- Static `Sql` entry binding
 - `@KyraScan` generates tables/Reflectors and installs them via registry on demand
 
 REST DTOs must have a generated Reflector. Add `@Reflect` to standalone DTOs; entities in an
@@ -662,12 +667,15 @@ Generated mappers can be injected via CDI:
 UserMapper userMapper;
 ```
 
-Static DSL entry points work the same way:
+`DSLContext` can be injected via CDI:
 
 ```java
-User user = Sql.from(Tables.get(User.class))
+@Inject
+DSLContext dsl;
+
+User user = dsl.from(Tables.get(User.class))
         .limit(1)
-        .one(User.class);
+        .one();
 ```
 
 ## Building & Testing

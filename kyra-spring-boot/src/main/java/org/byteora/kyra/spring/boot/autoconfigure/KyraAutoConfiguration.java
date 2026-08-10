@@ -1,8 +1,8 @@
 package org.byteora.kyra.spring.boot.autoconfigure;
 
+import org.byteora.kyra.orm.query.DSLContext;
 import org.byteora.kyra.orm.runtime.*;
 import org.byteora.kyra.spring.boot.SpringTransactionSqlExecutor;
-import org.byteora.kyra.spring.boot.Sql;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -27,11 +27,10 @@ public class KyraAutoConfiguration {
         return new DefaultSqlGenerator();
     }
 
-    @Bean(destroyMethod = "close")
+    @Bean
     @ConditionalOnMissingBean
-    public SqlBinding sqlBinding(SqlExecutor sqlExecutor) {
-        Sql.bind(sqlExecutor);
-        return new SqlBinding();
+    public DSLContext dslContext(SqlExecutor sqlExecutor) {
+        return new DSLContext(sqlExecutor);
     }
 
     @Bean("sqlExecutor")
@@ -55,12 +54,5 @@ public class KyraAutoConfiguration {
     @ConditionalOnMissingBean
     public static KyraMapperBeanDefinitionRegistryPostProcessor kyraMapperBeanDefinitionRegistryPostProcessor() {
         return new KyraMapperBeanDefinitionRegistryPostProcessor();
-    }
-
-    public static final class SqlBinding implements AutoCloseable {
-        @Override
-        public void close() {
-            Sql.clear();
-        }
     }
 }

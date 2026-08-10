@@ -91,21 +91,22 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
     }
 
     @Override
-    public List<T> selectList(WhereWrapper query) {
-        if (query == null) query = new WhereWrapper();
+    public List<T> list(WhereWrapper query) {
+        query = normalize(query);
         SqlRequest request = sqlExecutor.getSqlGenerator().renderSelect(table, query.toDefinition(), sqlExecutor.getDbType());
-        return sqlExecutor.selectList(request.sql(), request.args(), type);
+        return sqlExecutor.selectList(request.sql(), request.args(), selectContext("list"), type);
     }
 
     @Override
-    public T selectOne(WhereWrapper query) {
+    public T one(WhereWrapper query) {
+        query = normalize(query);
         SqlRequest request = sqlExecutor.getSqlGenerator().renderSelect(table, query.toDefinition(), sqlExecutor.getDbType());
-        return sqlExecutor.selectOne(request.sql(), request.args(), type);
+        return sqlExecutor.selectOne(request.sql(), request.args(), selectContext("one"), type);
     }
 
     @Override
     public long count(WhereWrapper query) {
-        if (query == null) query = new WhereWrapper();
+        query = normalize(query);
         var whereDefinition = query.toDefinition();
         SqlRequest request = sqlExecutor.getSqlGenerator().renderSelect(table, query.toDefinition(), sqlExecutor.getDbType());
         SqlRequest countRequest = sqlExecutor.getSqlGenerator().rewriteCount(
@@ -129,8 +130,25 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
     }
 
     @Override
+    public boolean exists(WhereWrapper query) {
+        query = normalize(query);
+        WhereDefinition whereDefinition = query.toDefinition();
+        QueryDefinition existsDefinition = new QueryDefinition(
+                List.of(Expressions.raw("1")),
+                false,
+                table,
+                List.of(),
+                List.of(),
+                null,
+                new WhereDefinition(whereDefinition.condition(), List.of(), 1, null)
+        );
+        SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(existsDefinition, sqlExecutor.getDbType());
+        return !sqlExecutor.selectList(request.sql(), request.args(), selectContext("exists"), Integer.class).isEmpty();
+    }
+
+    @Override
     public Page<T> page(Paging paging, WhereWrapper query) {
-        if (query == null) query = new WhereWrapper();
+        query = normalize(query);
         var whereDefinition = query.toDefinition();
         SqlRequest request = sqlExecutor.getSqlGenerator().renderSelect(table, whereDefinition, sqlExecutor.getDbType());
         SqlRequest countRequest = sqlExecutor.getSqlGenerator().rewriteCount(
@@ -207,6 +225,7 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
 
     @Override
     public int delete(WhereWrapper query) {
+        query = normalize(query);
         SqlRequest request = sqlExecutor.getSqlGenerator().renderDelete(table, query.toDefinition(), sqlExecutor.getDbType());
         return sqlExecutor.update(request.sql(), request.args());
     }
@@ -238,6 +257,17 @@ public class BaseMapperImpl<T> extends AbstractMapper<T> implements BaseMapper<T
                 sqlExecutor.getDbType()
         );
         return sqlExecutor.update(request.sql(), request.args());
+    }
+
+    private WhereWrapper normalize(WhereWrapper query) {
+        return query == null ? new WhereWrapper() : query;
+    }
+
+    private SqlExecutionContext selectContext(String methodName) {
+        return SqlExecutionContext.builder(SqlCommandType.SELECT)
+                .sqlExecutor(sqlExecutor)
+                .mapper(getClass(), methodName)
+                .build();
     }
 
     private boolean isIdField(String field) {

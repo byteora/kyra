@@ -1,5 +1,6 @@
 package org.byteora.kyra.quarkus.runtime;
 
+import org.byteora.kyra.orm.query.DSLContext;
 import org.byteora.kyra.orm.runtime.DefaultSqlGenerator;
 import org.byteora.kyra.orm.runtime.DefaultSqlPagingSupport;
 import org.byteora.kyra.orm.runtime.SqlExecutor;
@@ -57,6 +58,22 @@ class KyraQuarkusProducerTest {
         assertSame(pagingSupport, executor.getSqlPagingSupport());
         assertSame(sqlGenerator, executor.getSqlGenerator());
         assertEquals(List.of(interceptor), executor.getInterceptors());
+    }
+
+    @Test
+    void shouldCreateDslContextFromSqlExecutor() {
+        KyraQuarkusProducer producer = new KyraQuarkusProducer();
+        SqlExecutor sqlExecutor = producer.sqlExecutor(
+                new TestInstance<>(new NoopDataSource()),
+                new TestInstance<>(new TypeConverter()),
+                new TestInstance<>(new DefaultSqlPagingSupport()),
+                new TestInstance<>(new DefaultSqlGenerator()),
+                new TestInstance<>(List.of())
+        );
+
+        DSLContext dsl = producer.dslContext(sqlExecutor);
+
+        assertNotNull(dsl);
     }
 
     private static final class NoopDataSource implements DataSource {

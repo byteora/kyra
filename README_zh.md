@@ -11,7 +11,7 @@
 - **编译期代码生成** —— `@Reflect` / `@KyraScan` 生成 `XxxReflector`、`XxxTable`、`XxxMapperImpl`，运行时无反射。
 - **MyBatis 风格 XML Mapper** —— `select / insert / update / delete`，支持 `where / if / foreach` 动态标签与 `#{...}` 参数绑定。
 - **类型安全 Wrapper DSL** —— 流式条件、join、分组、别名与分页。
-- **通用 CRUD** —— `BaseMapper` 与静态 `Sql` 入口覆盖日常操作，无需手写 SQL。
+- **通用 CRUD** —— `BaseMapper` 与注入或显式创建的 `DSLContext` 覆盖日常操作，无需手写 SQL。
 - **无反射 JSON** —— `kyra-json` 通过生成的 `Reflector` 做 databind，底层只用 Jackson core 处理 token。
 - **零依赖 Excel** —— `kyra-excel` 以流式 API 读写 `.xlsx`，不引入任何第三方依赖。
 - **框架集成** —— Spring Boot 与 Quarkus 自动配置。
@@ -22,7 +22,7 @@
 | 模块 | 构件 | 说明 |
 | --- | --- | --- |
 | 核心运行时 | `kyra-core` | `@Reflect`、`Reflector`、`ReflectorRegistry`、共享运行时 |
-| ORM | `kyra-orm` | SQL 会话、`BaseMapper`、Wrapper DSL、方言 SPI |
+| ORM | `kyra-orm` | SQL 执行、`DSLContext`、`BaseMapper`、Wrapper DSL、方言 SPI |
 | JSON | `kyra-json` | 无反射 JSON databind |
 | Excel | `kyra-excel` | 零依赖 `.xlsx` 读写引擎 |
 | Reflect 处理器 | `kyra-processor` | 生成 `Reflector` 与 JSON installer |
@@ -43,7 +43,7 @@
   - [Mapper 接口](#6-mapper-接口)
   - [XML Mapper](#7-xml-mapper)
 - [运行时使用](#运行时使用)
-- [Wrapper DSL](#wrapper-dsl)
+- [查询 API](#查询-api)
 - [`BaseMapper` 通用能力](#basemapper-通用能力)
 - [`@MapperCapability`](#mappercapability)
 - [SQL Dialect SPI](#sql-dialect-spi)
@@ -251,7 +251,7 @@ public interface UserMapper {
 
 ## 运行时使用
 
-### 直接使用 `SqlSession`
+### 直接使用 ORM
 
 ```java
 JdbcDataSource dataSource = new JdbcDataSource();
@@ -259,8 +259,9 @@ dataSource.setURL("jdbc:h2:mem:test;MODE=MySQL;DB_CLOSE_DELAY=-1");
 dataSource.setUser("sa");
 dataSource.setPassword("");
 
-SqlSession sqlSession = new DefaultSqlSession(dataSource);
-UserMapper userMapper = new UserMapperImpl(sqlSession);
+SqlExecutor sqlExecutor = new DefaultSqlExecutor(dataSource);
+DSLContext dsl = new DSLContext(sqlExecutor);
+UserMapper userMapper = new UserMapperImpl(sqlExecutor);
 
 User user = userMapper.selectById(1L);
 ```
@@ -277,14 +278,15 @@ logging:
     org.byteora.kyra.orm.runtime.jdbc.DefaultSqlExecutor: DEBUG
 ```
 
-## Wrapper DSL
+## 查询 API
 
-除了 XML，也可以直接使用 Wrapper DSL 构造查询。
+Kyra 提供三层查询用法：实体 CRUD 使用生成的 `BaseMapper`，简洁实体查询使用
+`dsl.from(table)`，投影与完整组合查询使用 `dsl.query(Class/TypeRef)`。
 
-### 条件查询
+### 1. `BaseMapper` 实体 CRUD
 
 ```java
-List<User> users = userMapper.selectList(
+List<User> users = userMapper.list(
         Wrapper.where()
                 .where(
                         UserTable.TABLE.age.ge(18),
@@ -292,27 +294,44 @@ List<User> users = userMapper.selectList(
                 )
                 .orderBy(order -> order.asc(UserTable.TABLE.id))
 );
+
+User user = userMapper.one(UserTable.TABLE.id.eq(1L));
 ```
 
-### 分页
+`BaseMapper` 还提供 `count`、`exists`、`page`、`insert`、`updateById`、`update`
+与删除操作。
+
+### 2. `DSLContext.from(table)` 实体查询
+
+结果类型由表提供，因此终端方法不再传入 `Class` 或 `TypeRef`：
 
 ```java
-Paging paging = Paging.of(1, 10);
-Page<User> page = userMapper.selectPage(paging, 18, 30);
+User user = dsl.from(UserTable.TABLE)
+        .where(UserTable.TABLE.id.eq(1L))
+        .one();
+List<User> users = dsl.from(UserTable.TABLE).list();
+Page<User> page = dsl.from(UserTable.TABLE).page(1, 10);
+long total = dsl.from(UserTable.TABLE).count();
+boolean anyAdults = dsl.from(UserTable.TABLE)
+        .where(UserTable.TABLE.age.ge(18))
+        .exists();
 ```
 
-### alias-aware DSL
+### 3. `DSLContext.query(resultType)` 投影查询
+
+查询开始时确定结果类型，终端方法均不再携带类型参数：
 
 ```java
 var total = Functions.count().as("total");
 var ageGroup = Functions.ifElse(UserTable.TABLE.age.ge(18), "adult", "minor").as("age_group");
 
-var query = Wrapper.query()
+List<UserSummary> summaries = dsl.query(UserSummary.class)
         .select(ageGroup, total)
         .from(UserTable.TABLE)
         .groupBy(ageGroup)
         .having(total.ge(2))
-        .orderBy(order -> order.desc(total));
+        .orderBy(order -> order.desc(total))
+        .list();
 ```
 
 支持：
@@ -329,11 +348,11 @@ var query = Wrapper.query()
 查询行包含泛型参数时使用 `TypeRef`；普通结果类仍直接传入 `Class`：
 
 ```java
-List<Pair<String, Long>> totals = Sql.query()
+List<Pair<String, Long>> totals = dsl.query(new TypeRef<Pair<String, Long>>() {})
         .select(key, Functions.count().as("value"))
         .from(member)
         .groupByAlias("key")
-        .list(new TypeRef<Pair<String, Long>>() {});
+        .list();
 ```
 
 ORM 会在行映射过程中保留捕获的 `Type`，因此 record 的 `K`、`V` 会解析为
@@ -345,7 +364,7 @@ ORM 会在行映射过程中保留捕获的 `Type`，因此 record 的 `K`、`V`
 var users = UserTable.TABLE;
 var manager = UserTable.TABLE.alias("manager");
 
-var query = Wrapper.query()
+var query = dsl.query(UserSummary.class)
         .select(users.name, manager.name)
         .from(users)
         .leftJoin(manager, on -> on.eq(users.id, manager.id));
@@ -362,8 +381,8 @@ users.age.ge(manager.age)
 
 当前示例已经覆盖：
 
-- `selectOne`
-- `selectList`
+- `one`
+- `list`
 - `count`
 - `insert(T)`
 - `insert(List<T>)`
@@ -385,13 +404,13 @@ public interface UpdateMapper<T> {
 
 @MapperCapability(UpdateMapper.class)
 public class UpdateMapperImpl<T> extends AbstractMapper<T> implements UpdateMapper<T> {
-    public UpdateMapperImpl(SqlSession sqlSession, Class<?> type) {
-        super(sqlSession, type);
+    public UpdateMapperImpl(SqlExecutor sqlExecutor, Class<T> type) {
+        super(sqlExecutor, type);
     }
 
     @Override
     public int updateNameById(Long id, String name) {
-        return sqlSession.update(
+        return sqlExecutor.update(
                 "update users set name = ? where id = ?",
                 new Object[]{name, id}
         );
@@ -401,9 +420,9 @@ public class UpdateMapperImpl<T> extends AbstractMapper<T> implements UpdateMapp
 
 支持的能力构造器：
 
-- `(SqlSession)`
-- `(SqlSession, Class<?>)`
-- `(SqlSession, Table<?>)`
+- `(SqlExecutor)`
+- `(SqlExecutor, Class<?>)`
+- `(SqlExecutor, Table<?>)`
 
 ## SQL Dialect SPI
 
@@ -451,59 +470,41 @@ dependencies {
 
 存在 `DataSource` 时，`kyra-spring-boot` 会自动提供：
 
-- `SqlSessionFactory`
-- 原型作用域 `SqlSession`
+- `SqlExecutor`
+- `DSLContext`
 - `SqlPagingSupport`
 - `SqlGenerator`
 - Mapper Bean 注册器
-- 静态 `Sql` 入口绑定
 - 如果 Spring Web 在 classpath 中，自动注册 `JsonMapper` 与基于 `kyra-json` 的 HTTP JSON `HttpMessageConverter`
 
-### 静态查询入口
+### 注入查询入口
 
 ```java
-User user = Sql.query()
+@Autowired
+DSLContext dsl;
+
+User user = dsl.query(User.class)
         .selectAll()
         .from(UserTable.TABLE)
         .orderBy(order -> order.asc(UserTable.TABLE.id))
         .limit(1)
-        .one(User.class);
+        .one();
 ```
 
-也支持更短的查询入口：
+实体查询优先使用更简洁的表入口：
 
 ```java
-User user = Sql.from(UserTable.TABLE)
+User user = dsl.from(UserTable.TABLE)
         .where(UserTable.TABLE.id.eq(1L))
-        .one(User.class);
+        .one();
 ```
 
-```java
-User user = Sql.select(UserTable.TABLE, UserTable.TABLE.id.eq(1L));
-List<User> users = Sql.selectList(
-        UserTable.TABLE,
-        UserTable.TABLE.age.ge(18),
-        UserTable.TABLE.name.isNotNull()
-);
-```
-
-说明：
-
-- `Sql.query()`
-从空查询开始，适合复杂 DSL 组合
-- `Sql.from(table)`
-默认 `selectAll().from(table)`，适合从单表快速起查询
-- `Sql.select(table, conditions...)`
-默认单条查询语义，内部会执行 `.one(table.type())`
-- `Sql.selectList(table, conditions...)`
-默认多条查询语义，内部会执行 `.list(table.type())`
-
-也支持直接静态 CRUD：
+CRUD 使用同一个实例：
 
 ```java
-Sql.insert(user);
-Sql.updateById(user);
-Sql.deleteById(User.class, 1L);
+dsl.insert(user);
+dsl.updateById(user);
+dsl.deleteById(User.class, 1L);
 ```
 
 ## Excel
@@ -621,12 +622,12 @@ dependencies {
 存在 `DataSource` 时，`kyra-quarkus` 会自动提供：
 
 - `SqlExecutor`
+- `DSLContext`
 - `SqlPagingSupport`
 - `SqlGenerator`
 - `JsonMapper`
 - Quarkus REST 的 `application/json`、`application/*+json` 请求/响应体处理
 - Mapper Bean 自动注册
-- 静态 `Sql` 入口绑定
 - `@KyraScan` 生成表/Reflector，并通过 registry 按需安装
 
 REST DTO 必须有生成的 Reflector。独立 DTO 添加 `@Reflect`；位于
@@ -666,12 +667,15 @@ public class KyraQuarkusConfig {
 UserMapper userMapper;
 ```
 
-静态 DSL 入口同样可用：
+`DSLContext` 可以通过 CDI 注入：
 
 ```java
-User user = Sql.from(Tables.get(User.class))
+@Inject
+DSLContext dsl;
+
+User user = dsl.from(Tables.get(User.class))
         .limit(1)
-        .one(User.class);
+        .one();
 ```
 
 ## 本地构建与测试

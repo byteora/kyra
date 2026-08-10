@@ -1,6 +1,5 @@
 package org.byteora.kyra.orm.query;
 
-import org.byteora.kyra.core.TypeRef;
 import org.byteora.kyra.orm.runtime.SqlExecutionContext;
 import org.byteora.kyra.orm.runtime.SqlExecutor;
 import org.byteora.kyra.orm.runtime.SqlRequest;
@@ -14,97 +13,103 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public final class QueryWrapper {
+public final class QueryWrapper<R> {
     private final List<SqlExpression> selectExpressions = new ArrayList<>();
     private final List<JoinSpec> joins = new ArrayList<>();
     private final List<SqlExpression> groupByExpressions = new ArrayList<>();
     private final WhereWrapper whereWrapper = new WhereWrapper();
     private final SqlExecutor sqlExecutor;
+    private final Type resultType;
     private Condition having;
     private Table<?> from;
+    private boolean explicitSelect;
     private boolean selectAll;
 
-    public QueryWrapper() {
-        this(null);
+    QueryWrapper(SqlExecutor sqlExecutor, Type resultType) {
+        this.sqlExecutor = Objects.requireNonNull(sqlExecutor, "sqlExecutor");
+        this.resultType = Objects.requireNonNull(resultType, "resultType");
     }
 
-    public QueryWrapper(SqlExecutor sqlExecutor) {
-        this.sqlExecutor = sqlExecutor;
-    }
-
-    public QueryWrapper select(SqlExpression... expressions) {
+    public QueryWrapper<R> select(SqlExpression... expressions) {
+        if (selectAll) {
+            throw new SqlExecutorException("select(...) and selectAll() are mutually exclusive");
+        }
+        explicitSelect = true;
         Collections.addAll(selectExpressions, expressions);
         return this;
     }
 
-    public QueryWrapper selectAll() {
+    public QueryWrapper<R> selectAll() {
+        if (explicitSelect) {
+            throw new SqlExecutorException("selectAll() and select(...) are mutually exclusive");
+        }
         this.selectAll = true;
         return this;
     }
 
-    public QueryWrapper from(Table<?> table) {
+    public QueryWrapper<R> from(Table<?> table) {
         this.from = Objects.requireNonNull(table, "table");
         return this;
     }
 
-    public JoinStep leftJoin(Table<?> table) {
-        return new JoinStep(this, "LEFT JOIN", table);
+    public JoinStep<R> leftJoin(Table<?> table) {
+        return new JoinStep<>(this, "LEFT JOIN", table);
     }
 
-    public QueryWrapper leftJoin(Table<?> table, Condition on) {
+    public QueryWrapper<R> leftJoin(Table<?> table, Condition on) {
         return leftJoin(table).on(on);
     }
 
-    public QueryWrapper leftJoin(Table<?> table, Consumer<PredicateBuilder> on) {
+    public QueryWrapper<R> leftJoin(Table<?> table, Consumer<PredicateBuilder> on) {
         return leftJoin(table).on(on);
     }
 
-    public JoinStep innerJoin(Table<?> table) {
-        return new JoinStep(this, "INNER JOIN", table);
+    public JoinStep<R> innerJoin(Table<?> table) {
+        return new JoinStep<>(this, "INNER JOIN", table);
     }
 
-    public QueryWrapper innerJoin(Table<?> table, Condition on) {
+    public QueryWrapper<R> innerJoin(Table<?> table, Condition on) {
         return innerJoin(table).on(on);
     }
 
-    public QueryWrapper innerJoin(Table<?> table, Consumer<PredicateBuilder> on) {
+    public QueryWrapper<R> innerJoin(Table<?> table, Consumer<PredicateBuilder> on) {
         return innerJoin(table).on(on);
     }
 
-    public JoinStep rightJoin(Table<?> table) {
-        return new JoinStep(this, "RIGHT JOIN", table);
+    public JoinStep<R> rightJoin(Table<?> table) {
+        return new JoinStep<>(this, "RIGHT JOIN", table);
     }
 
-    public QueryWrapper rightJoin(Table<?> table, Condition on) {
+    public QueryWrapper<R> rightJoin(Table<?> table, Condition on) {
         return rightJoin(table).on(on);
     }
 
-    public QueryWrapper rightJoin(Table<?> table, Consumer<PredicateBuilder> on) {
+    public QueryWrapper<R> rightJoin(Table<?> table, Consumer<PredicateBuilder> on) {
         return rightJoin(table).on(on);
     }
 
-    public QueryWrapper where(Consumer<PredicateBuilder> consumer) {
+    public QueryWrapper<R> where(Consumer<PredicateBuilder> consumer) {
         whereWrapper.where(consumer);
         return this;
     }
 
-    public QueryWrapper where(Condition condition) {
+    public QueryWrapper<R> where(Condition condition) {
         whereWrapper.condition(condition);
         return this;
     }
 
-    public QueryWrapper where(Condition... conditions) {
+    public QueryWrapper<R> where(Condition... conditions) {
         whereWrapper.where(conditions);
         return this;
     }
 
-    public QueryWrapper groupBy(SqlExpression... expressions) {
+    public QueryWrapper<R> groupBy(SqlExpression... expressions) {
         groupByExpressions.clear();
         Collections.addAll(groupByExpressions, expressions);
         return this;
     }
 
-    public QueryWrapper groupBy(NamedSqlExpression... expressions) {
+    public QueryWrapper<R> groupBy(NamedSqlExpression... expressions) {
         groupByExpressions.clear();
         for (NamedSqlExpression expression : expressions) {
             groupByExpressions.add(expression.aliasRef());
@@ -112,7 +117,7 @@ public final class QueryWrapper {
         return this;
     }
 
-    public QueryWrapper groupByAlias(String... aliases) {
+    public QueryWrapper<R> groupByAlias(String... aliases) {
         groupByExpressions.clear();
         for (String alias : aliases) {
             groupByExpressions.add(Expressions.aliasRef(alias));
@@ -120,39 +125,39 @@ public final class QueryWrapper {
         return this;
     }
 
-    public QueryWrapper having(Consumer<PredicateBuilder> consumer) {
+    public QueryWrapper<R> having(Consumer<PredicateBuilder> consumer) {
         PredicateBuilder builder = new PredicateBuilder();
         consumer.accept(builder);
         this.having = builder.build();
         return this;
     }
 
-    public QueryWrapper having(Condition condition) {
+    public QueryWrapper<R> having(Condition condition) {
         this.having = condition;
         return this;
     }
 
-    public QueryWrapper having(Condition... conditions) {
+    public QueryWrapper<R> having(Condition... conditions) {
         this.having = Conditions.and(conditions);
         return this;
     }
 
-    public QueryWrapper orderBy(Consumer<OrderBuilder> consumer) {
+    public QueryWrapper<R> orderBy(Consumer<OrderBuilder> consumer) {
         whereWrapper.orderBy(consumer);
         return this;
     }
 
-    public QueryWrapper orderBy(Order... orders) {
+    public QueryWrapper<R> orderBy(Order... orders) {
         whereWrapper.orderBy(orders);
         return this;
     }
 
-    public QueryWrapper limit(int limit) {
+    public QueryWrapper<R> limit(int limit) {
         whereWrapper.limit(limit);
         return this;
     }
 
-    public QueryWrapper limit(int offset, int limit) {
+    public QueryWrapper<R> limit(int offset, int limit) {
         whereWrapper.limit(offset, limit);
         return this;
     }
@@ -172,75 +177,36 @@ public final class QueryWrapper {
         );
     }
 
-    public <T> T one(Class<T> resultType) {
-        return oneInternal(resultType);
-    }
-
-    public <T> T one(TypeRef<T> resultType) {
-        Objects.requireNonNull(resultType, "resultType");
-        return oneInternal(resultType.type());
-    }
-
-    private <T> T oneInternal(Type resultType) {
-        SqlExecutor sqlExecutor = requireSqlExecutor();
+    public R one() {
         SqlRequest request = renderQuery(sqlExecutor);
-        return sqlExecutor.selectOne(request.sql(), request.args(), resultType);
+        return sqlExecutor.selectOne(request.sql(), request.args(), context("one"), resultType);
     }
 
-    public <T> List<T> list(Class<T> resultType) {
-        return listInternal(resultType);
-    }
-
-    public <T> List<T> list(TypeRef<T> resultType) {
-        Objects.requireNonNull(resultType, "resultType");
-        return listInternal(resultType.type());
-    }
-
-    private <T> List<T> listInternal(Type resultType) {
-        SqlExecutor sqlExecutor = requireSqlExecutor();
+    public List<R> list() {
         SqlRequest request = renderQuery(sqlExecutor);
-        return sqlExecutor.selectList(request.sql(), request.args(), resultType);
+        return sqlExecutor.selectList(request.sql(), request.args(), context("list"), resultType);
     }
 
     public long count() {
-        SqlExecutor sqlExecutor = requireSqlExecutor();
         QueryDefinition definition = toDefinition();
         SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(definition, sqlExecutor.getDbType());
         SqlRequest countRequest = sqlExecutor.getSqlGenerator().rewriteCount(definition, sqlExecutor.getDbType());
-        SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
-                .sqlExecutor(sqlExecutor)
-                .mapper(QueryWrapper.class, "count")
+        SqlExecutionContext context = contextBuilder("count")
                 .countRequest(countRequest)
                 .build();
         return sqlExecutor.getSqlPagingSupport().count(sqlExecutor, context, request.sql(), request.args());
     }
 
-    public <T> Page<T> page(int current, int size, Class<T> resultType) {
-        return pageInternal(Paging.of(current, size), resultType);
+    public Page<R> page(int current, int size) {
+        return page(Paging.of(current, size));
     }
 
-    public <T> Page<T> page(int current, int size, TypeRef<T> resultType) {
-        Objects.requireNonNull(resultType, "resultType");
-        return pageInternal(Paging.of(current, size), resultType.type());
-    }
-
-    public <T> Page<T> page(Paging paging, Class<T> resultType) {
-        return pageInternal(paging, resultType);
-    }
-
-    public <T> Page<T> page(Paging paging, TypeRef<T> resultType) {
-        Objects.requireNonNull(resultType, "resultType");
-        return pageInternal(paging, resultType.type());
-    }
-
-    private <T> Page<T> pageInternal(Paging paging, Type resultType) {
-        var sqlExecutor = requireSqlExecutor();
+    public Page<R> page(Paging paging) {
+        Objects.requireNonNull(paging, "paging");
         QueryDefinition definition = toDefinition();
         SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(definition, sqlExecutor.getDbType());
         SqlRequest countRequest = sqlExecutor.getSqlGenerator().rewriteCount(definition, sqlExecutor.getDbType());
-        SqlExecutionContext context = SqlExecutionContext.builder(SqlCommandType.SELECT)
-                .sqlExecutor(sqlExecutor)
-                .mapper(QueryWrapper.class, "page")
+        SqlExecutionContext context = contextBuilder("page")
                 .paging(paging)
                 .countRequest(countRequest)
                 .build();
@@ -248,7 +214,6 @@ public final class QueryWrapper {
     }
 
     public boolean exists() {
-        SqlExecutor sqlExecutor = requireSqlExecutor();
         QueryDefinition base = toDefinition();
         QueryDefinition existsDefinition = new QueryDefinition(
                 List.of(Expressions.raw("1")),
@@ -260,41 +225,44 @@ public final class QueryWrapper {
                 new WhereDefinition(base.where().condition(), List.of(), 1, null)
         );
         SqlRequest request = sqlExecutor.getSqlGenerator().renderQuery(existsDefinition, sqlExecutor.getDbType());
-        return !sqlExecutor.selectList(request.sql(), request.args(), Integer.class).isEmpty();
+        return !sqlExecutor.selectList(request.sql(), request.args(), context("exists"), Integer.class).isEmpty();
     }
 
     private SqlRequest renderQuery(SqlExecutor sqlExecutor) {
         return sqlExecutor.getSqlGenerator().renderQuery(toDefinition(), sqlExecutor.getDbType());
     }
 
-    private SqlExecutor requireSqlExecutor() {
-        if (sqlExecutor != null) {
-            return this.sqlExecutor;
-        }
-        throw new SqlExecutorException("QueryWrapper is not bound to a SqlExecutor. Use new QueryWrapper(sqlExecutor), new QueryWrapper(provider), or Wrapper.query(sqlExecutor).");
+    private SqlExecutionContext context(String methodName) {
+        return contextBuilder(methodName).build();
+    }
+
+    private SqlExecutionContext.Builder contextBuilder(String methodName) {
+        return SqlExecutionContext.builder(SqlCommandType.SELECT)
+                .sqlExecutor(sqlExecutor)
+                .mapper(DSLContext.class, methodName);
     }
 
     private void addJoin(String joinType, Table<?> table, Condition on) {
         joins.add(new JoinSpec(joinType, table, on));
     }
 
-    public static final class JoinStep {
-        private final QueryWrapper owner;
+    public static final class JoinStep<R> {
+        private final QueryWrapper<R> owner;
         private final String joinType;
         private final Table<?> table;
 
-        private JoinStep(QueryWrapper owner, String joinType, Table<?> table) {
+        private JoinStep(QueryWrapper<R> owner, String joinType, Table<?> table) {
             this.owner = owner;
             this.joinType = joinType;
             this.table = table;
         }
 
-        public QueryWrapper on(Condition condition) {
+        public QueryWrapper<R> on(Condition condition) {
             owner.addJoin(joinType, table, condition);
             return owner;
         }
 
-        public QueryWrapper on(Consumer<PredicateBuilder> consumer) {
+        public QueryWrapper<R> on(Consumer<PredicateBuilder> consumer) {
             PredicateBuilder builder = new PredicateBuilder();
             consumer.accept(builder);
             return on(builder.build());

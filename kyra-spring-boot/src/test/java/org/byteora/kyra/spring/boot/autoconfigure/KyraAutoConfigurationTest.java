@@ -4,17 +4,15 @@ import org.byteora.kyra.core.annotation.Reflect;
 import org.byteora.kyra.core.runtime.GeneratedReflectors;
 import org.byteora.kyra.core.runtime.*;
 import org.byteora.kyra.orm.runtime.*;
+import org.byteora.kyra.orm.query.DSLContext;
 import org.byteora.kyra.orm.query.Page;
 import org.byteora.kyra.orm.query.Paging;
-import org.byteora.kyra.orm.query.QueryWrapper;
 import org.byteora.kyra.orm.query.Tables;
-import org.byteora.kyra.orm.query.Wrapper;
 import org.byteora.kyra.spring.boot.autoconfigure.collision.CollisionMapperKyraConfig;
 import org.byteora.kyra.spring.boot.autoconfigure.mapper.TestUser;
 import org.byteora.kyra.spring.boot.autoconfigure.mapper.TestMapperKyraConfig;
 import org.byteora.kyra.spring.boot.autoconfigure.mapper.TestUserMapper;
 import org.byteora.kyra.spring.boot.SpringTransactionSqlExecutor;
-import org.byteora.kyra.spring.boot.Sql;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -52,7 +50,18 @@ public class KyraAutoConfigurationTest {
                     assertInstanceOf(SpringTransactionSqlExecutor.class, first);
                     assertSame(first, second);
                     assertInstanceOf(DefaultSqlPagingSupport.class, context.getBean(SqlPagingSupport.class));
+                    assertSame(context.getBean(DSLContext.class), context.getBean(DSLContext.class));
                 });
+    }
+
+    @Test
+    void shouldBackOffForCustomDslContext() {
+        contextRunner
+                .withUserConfiguration(DataSourceConfig.class, CustomDslContextConfig.class)
+                .run(context -> assertSame(
+                        context.getBean("customDslContext"),
+                        context.getBean(DSLContext.class)
+                ));
     }
 
     @Test
@@ -83,6 +92,7 @@ public class KyraAutoConfigurationTest {
 
                     TransactionTemplate template = context.getBean(TransactionTemplate.class);
                     SqlExecutor sqlExecutor = context.getBean(SqlExecutor.class);
+                    DSLContext dsl = context.getBean(DSLContext.class);
 
                     try {
                         template.executeWithoutResult(status -> {
@@ -92,13 +102,15 @@ public class KyraAutoConfigurationTest {
                     } catch (RuntimeException ignored) {
                     }
 
-                    TxRow row = sqlExecutor.selectOne("select id, name from tx_demo where id = ?", new Object[]{1L}, TxRow.class);
+                    TxRow row = dsl.from(TxRowTable.TX_DEMO)
+                            .where(TxRowTable.TX_DEMO.id.eq(1L))
+                            .one();
                     assertNull(row);
                 });
     }
 
     @Test
-    void shouldSupportStaticSqlQueryDslWithRegisteredTableLookup() {
+    void shouldSupportInjectedDslContextQueryLayers() {
         contextRunner
                 .withUserConfiguration(DataSourceConfig.class)
                 .run(context -> {
@@ -112,29 +124,32 @@ public class KyraAutoConfigurationTest {
                         statement.execute("insert into tx_demo(id, name) values (1, 'a'), (2, 'b')");
                     }
 
-                    QueryWrapper oneQuery = Wrapper.<TxRow>query()
-                            .selectAll()
-                            .from(TxRowTable.TX_DEMO)
-                            .orderBy(order -> order.asc(TxRowTable.TX_DEMO.id))
-                            .limit(1);
-
-                    TxRow one = Sql.query()
+                    DSLContext dsl = context.getBean(DSLContext.class);
+                    TxRow one = dsl.query(TxRow.class)
                             .selectAll()
                             .from(TxRowTable.TX_DEMO)
                             .orderBy(order -> order.asc(TxRowTable.TX_DEMO.id))
                             .limit(1)
-                            .one(TxRow.class);
+                            .one();
                     assertEquals(1L, one.getId());
-                    one = Sql.select(TxRowTable.TX_DEMO, TxRowTable.TX_DEMO.id.eq(1));
+
+                    one = dsl.from(TxRowTable.TX_DEMO)
+                            .where(TxRowTable.TX_DEMO.id.eq(1L))
+                            .one();
                     assertEquals(1, one.getId());
+
+                    assertEquals(2, dsl.from(TxRowTable.TX_DEMO).list().size());
+                    assertEquals(2L, dsl.from(TxRowTable.TX_DEMO).count());
+                    assertTrue(dsl.from(TxRowTable.TX_DEMO)
+                            .where(TxRowTable.TX_DEMO.name.eq("b"))
+                            .exists());
+
                     Paging paging = new Paging();
                     paging.setCurrent(1);
                     paging.setSize(1);
-                    Page<TxRow> page = Sql.query()
-                            .selectAll()
-                            .from(TxRowTable.TX_DEMO)
+                    Page<TxRow> page = dsl.from(TxRowTable.TX_DEMO)
                             .orderBy(order -> order.asc(TxRowTable.TX_DEMO.id))
-                            .page(paging, TxRow.class);
+                            .page(paging);
                     assertEquals(1, page.current());
                     assertEquals(2L, page.total());
                     assertEquals(1, page.records().size());
@@ -142,7 +157,7 @@ public class KyraAutoConfigurationTest {
     }
 
     @Test
-    void shouldSupportStaticSqlFromShortcut() {
+    void shouldSupportInjectedDslContextFromShortcut() {
         contextRunner
                 .withUserConfiguration(DataSourceConfig.class)
                 .run(context -> {
@@ -156,17 +171,18 @@ public class KyraAutoConfigurationTest {
                         statement.execute("insert into tx_demo(id, name) values (1, 'a'), (2, 'b')");
                     }
 
-                    TxRow one = Sql.from(TxRowTable.TX_DEMO)
+                    DSLContext dsl = context.getBean(DSLContext.class);
+                    TxRow one = dsl.from(TxRowTable.TX_DEMO)
                             .orderBy(order -> order.asc(TxRowTable.TX_DEMO.id))
                             .limit(1)
-                            .one(TxRow.class);
+                            .one();
 
                     assertEquals(1L, one.getId());
                 });
     }
 
     @Test
-    void shouldSupportStaticSqlQueryDsl() {
+    void shouldSupportInjectedDslContextQueryDsl() {
         contextRunner
                 .withUserConfiguration(DataSourceConfig.class)
                 .run(context -> {
@@ -181,19 +197,20 @@ public class KyraAutoConfigurationTest {
                         statement.execute("insert into tx_demo(id, name) values (1, 'a'), (2, 'b')");
                     }
 
-                    TxRow one = Sql.query()
+                    DSLContext dsl = context.getBean(DSLContext.class);
+                    TxRow one = dsl.query(TxRow.class)
                             .selectAll()
                             .from(TxRowTable.TX_DEMO)
                             .orderBy(order -> order.asc(TxRowTable.TX_DEMO.id))
                             .limit(1)
-                            .one(TxRow.class);
+                            .one();
 
                     assertEquals(1L, one.getId());
                 });
     }
 
     @Test
-    void shouldSupportStaticSqlCrudHelpers() {
+    void shouldSupportInjectedDslContextCrudHelpers() {
         contextRunner
                 .withUserConfiguration(DataSourceConfig.class)
                 .run(context -> {
@@ -207,16 +224,17 @@ public class KyraAutoConfigurationTest {
                         statement.execute("create table tx_demo(id bigint auto_increment primary key, name varchar(32))");
                     }
 
+                    DSLContext dsl = context.getBean(DSLContext.class);
                     TxRow inserted = new TxRow();
                     inserted.setName("demo");
-                    assertEquals(1, Sql.insert(inserted));
+                    assertEquals(1, dsl.insert(inserted));
 
                     TxRow update = new TxRow();
                     update.setId(1L);
                     update.setName("demo-updated");
-                    assertEquals(1, Sql.updateById(update));
+                    assertEquals(1, dsl.updateById(update));
 
-                    assertEquals(1, Sql.deleteById(TxRow.class, 1L));
+                    assertEquals(1, dsl.deleteById(TxRow.class, 1L));
                 });
     }
 
@@ -291,6 +309,14 @@ public class KyraAutoConfigurationTest {
         @Bean
         SqlInterceptor testInterceptor() {
             return (context, request) -> request;
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class CustomDslContextConfig {
+        @Bean
+        DSLContext customDslContext(SqlExecutor sqlExecutor) {
+            return new DSLContext(sqlExecutor);
         }
     }
 

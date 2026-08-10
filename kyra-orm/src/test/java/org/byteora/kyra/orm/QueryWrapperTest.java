@@ -14,22 +14,23 @@ import org.junit.jupiter.api.Test;
 
 import org.byteora.kyra.orm.query.Column;
 import org.byteora.kyra.orm.query.Conditions;
+import org.byteora.kyra.orm.query.DSLContext;
 import org.byteora.kyra.orm.query.Table;
 import org.byteora.kyra.orm.query.Functions;
 import org.byteora.kyra.orm.query.NamedSqlExpression;
 import org.byteora.kyra.orm.query.Page;
 import org.byteora.kyra.orm.query.Paging;
 import org.byteora.kyra.orm.query.QueryWrapper;
-import org.byteora.kyra.orm.query.Wrapper;
 
 class QueryWrapperTest {
     private final DefaultSqlGenerator sqlGenerator = new DefaultSqlGenerator();
+    private final DSLContext dsl = new DSLContext(new RecordingSqlExecutor());
 
     @Test
     void predicateBuilderShouldRenderConditionalPredicates() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .where(where -> where
@@ -50,7 +51,7 @@ class QueryWrapperTest {
     void whereShouldSupportDirectConditionShortcut() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .where(users.ID.eq(1L))
@@ -66,7 +67,7 @@ class QueryWrapperTest {
     void whereShouldSupportMultipleConditionsAsAnd() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .where(
@@ -86,7 +87,7 @@ class QueryWrapperTest {
     void inAndNotInShouldHandleEmptyCollections() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .where(where -> where
@@ -102,7 +103,7 @@ class QueryWrapperTest {
     void selectShouldSupportAggregateFunctions() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(
                         Functions.count().as("total"),
                         Functions.avg(users.AGE).as("avg_age"),
@@ -121,7 +122,7 @@ class QueryWrapperTest {
     void ifFunctionShouldRenderPerDbType() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest mysqlRequest = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest mysqlRequest = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(Functions.ifElse(Conditions.ge(users.AGE, 18), "adult", "minor").as("age_group"))
                 .from(users)
                 .toDefinition(), DbType.MYSQL);
@@ -131,7 +132,7 @@ class QueryWrapperTest {
                 mysqlRequest.sql());
         assertArrayEquals(new Object[]{18, "adult", "minor"}, mysqlRequest.args());
 
-        SqlRequest postgresqlRequest = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest postgresqlRequest = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(Functions.ifElse(Conditions.ge(users.AGE, 18), "adult", "minor").as("age_group"))
                 .from(users)
                 .toDefinition(), DbType.POSTGRESQL);
@@ -146,7 +147,7 @@ class QueryWrapperTest {
     void caseWhenShouldRenderMultipleBranches() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(Functions.caseWhen(Conditions.ge(users.AGE, 60), "senior")
                         .when(Conditions.ge(users.AGE, 18), "adult")
                         .orElse("minor")
@@ -164,7 +165,7 @@ class QueryWrapperTest {
     void caseWhenShouldSupportAndOrConditionsAndNoElse() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(Functions.caseWhen(
                                 Conditions.and(Conditions.ge(users.AGE, 18), Conditions.lt(users.AGE, 65)), "working")
                         .when(Conditions.or(Conditions.lt(users.AGE, 18), Conditions.ge(users.AGE, 65)), "exempt")
@@ -183,7 +184,7 @@ class QueryWrapperTest {
     void ifElseShouldSupportAndOrCombinedConditions() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(Functions.ifElse(
                         Conditions.and(Conditions.ge(users.AGE, 18), Conditions.lt(users.AGE, 65)),
                         1,
@@ -201,7 +202,7 @@ class QueryWrapperTest {
     void conditionsShouldPropagateDbTypeToNestedExpressions() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(Functions.ifElse(
                         Conditions.eq(
                                 Functions.ifElse(Conditions.ge(users.AGE, 18), "adult", "minor"),
@@ -221,7 +222,7 @@ class QueryWrapperTest {
     void groupByAndHavingShouldSupportExpressions() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(
                         Functions.ifElse(Conditions.ge(users.AGE, 18), "adult", "minor").as("age_group"),
                         Functions.count().as("total"))
@@ -241,7 +242,7 @@ class QueryWrapperTest {
     void orderByShouldSupportAliasReference() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest mysqlRequest = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest mysqlRequest = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(
                         Functions.count().as("total"),
                         Functions.max(users.AGE).as("max_age"))
@@ -254,7 +255,7 @@ class QueryWrapperTest {
                 mysqlRequest.sql());
         assertArrayEquals(new Object[0], mysqlRequest.args());
 
-        SqlRequest postgresqlRequest = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest postgresqlRequest = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(
                         Functions.count().as("total"),
                         Functions.max(users.AGE).as("max_age"))
@@ -273,7 +274,7 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         NamedSqlExpression total = Functions.count().as("total");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(total)
                 .from(users)
                 .orderBy(order -> order.desc(total))
@@ -290,7 +291,7 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         NamedSqlExpression ageGroup = Functions.ifElse(Conditions.ge(users.AGE, 18), "adult", "minor").as("age_group");
 
-        SqlRequest mysqlRequest = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest mysqlRequest = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(ageGroup, Functions.count().as("total"))
                 .from(users)
                 .groupBy(ageGroup)
@@ -301,7 +302,7 @@ class QueryWrapperTest {
                 mysqlRequest.sql());
         assertArrayEquals(new Object[]{18, "adult", "minor"}, mysqlRequest.args());
 
-        SqlRequest postgresqlRequest = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest postgresqlRequest = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(ageGroup, Functions.count().as("total"))
                 .from(users)
                 .groupByAlias("age_group")
@@ -318,7 +319,7 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         NamedSqlExpression ageGroup = Functions.ifElse(Conditions.ge(users.AGE, 18), "adult", "minor").as("age_group");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(ageGroup, Functions.count().as("total"))
                 .from(users)
                 .where(users.ID.ge(10L), users.ID.lt(20L))
@@ -337,7 +338,7 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         NamedSqlExpression total = Functions.count().as("total");
 
-        SqlRequest mysqlRequest = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest mysqlRequest = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(total)
                 .from(users)
                 .having(having -> having.geAlias("total", 2))
@@ -348,7 +349,7 @@ class QueryWrapperTest {
                 mysqlRequest.sql());
         assertArrayEquals(new Object[]{2}, mysqlRequest.args());
 
-        SqlRequest postgresqlRequest = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest postgresqlRequest = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(total)
                 .from(users)
                 .having(having -> having.geAlias("total", 2))
@@ -365,7 +366,7 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         NamedSqlExpression total = Functions.count().as("total");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(total)
                 .from(users)
                 .having(total.ge(2))
@@ -383,7 +384,7 @@ class QueryWrapperTest {
         NamedSqlExpression total = Functions.count().as("total");
         NamedSqlExpression maxAge = Functions.max(users.AGE).as("max_age");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(total, maxAge)
                 .from(users)
                 .having(total.ge(2), maxAge.ge(18))
@@ -400,7 +401,7 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         NamedSqlExpression total = Functions.count().as("total");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(total)
                 .from(users)
                 .having(having -> having.condition(total.ge(2)))
@@ -417,7 +418,7 @@ class QueryWrapperTest {
     void countRewriteShouldUseDialectCountRewriter() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.rewriteCount(Wrapper.query()
+        SqlRequest request = sqlGenerator.rewriteCount(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .where(where -> where.ge(users.AGE, 18))
@@ -434,7 +435,7 @@ class QueryWrapperTest {
     void orderByVarargsShouldRenderMultipleOrders() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .where(users.AGE.ge(18))
@@ -452,7 +453,7 @@ class QueryWrapperTest {
         RecordingSqlExecutor sqlSession = new RecordingSqlExecutor();
         TestUserTable users = TestUserTable.USERS;
 
-        boolean exists = Wrapper.query(sqlSession)
+        boolean exists = new DSLContext(sqlSession).query(TestUser.class)
                 .selectAll()
                 .from(users)
                 .where(users.ID.eq(1L))
@@ -467,7 +468,7 @@ class QueryWrapperTest {
     void predicateBuilderShouldSupportOrAndNestedGroups() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .where(where -> where
@@ -490,7 +491,7 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         TestUserTable alias = new TestUserTable("users", "u2");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .leftJoin(alias)
@@ -512,7 +513,7 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         TestUserTable alias = new TestUserTable("users", "u2");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .leftJoin(alias, on -> on.eq(users.ID, alias.ID))
@@ -529,7 +530,7 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         TestUserTable manager = users.alias("manager");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .select(users.NAME, manager.NAME)
                 .from(users)
                 .leftJoin(manager, on -> on.eq(users.ID, manager.ID))
@@ -545,7 +546,7 @@ class QueryWrapperTest {
     void selectAllShouldUseAliasWhenSingleTableAliasIsExplicit() {
         TestUserTable alias = TestUserTable.USERS.alias("u");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(alias)
                 .where(alias.ID.eq(1L))
@@ -561,7 +562,7 @@ class QueryWrapperTest {
     void predicateBuilderShouldSupportNotGroups() {
         TestUserTable users = TestUserTable.USERS;
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .where(where -> where
@@ -583,7 +584,7 @@ class QueryWrapperTest {
         TestUserTable innerAlias = new TestUserTable("users", "u2");
         TestUserTable rightAlias = new TestUserTable("users", "u3");
 
-        SqlRequest request = sqlGenerator.renderQuery(Wrapper.query()
+        SqlRequest request = sqlGenerator.renderQuery(dsl.query(Object.class)
                 .selectAll()
                 .from(users)
                 .innerJoin(innerAlias)
@@ -603,15 +604,15 @@ class QueryWrapperTest {
         RecordingSqlExecutor sqlSession = new RecordingSqlExecutor();
         TestUserTable users = TestUserTable.USERS;
 
-        QueryWrapper query = Wrapper.query(sqlSession)
+        QueryWrapper<TestUser> query = new DSLContext(sqlSession).query(TestUser.class)
                 .selectAll()
                 .from(users)
                 .where(users.ID.eq(1L));
 
-        TestUser one = query.one(TestUser.class);
-        List<TestUser> list = query.list(TestUser.class);
+        TestUser one = query.one();
+        List<TestUser> list = query.list();
         long count = query.count();
-        Page<TestUser> page = query.page(Paging.of(1, 10), TestUser.class);
+        Page<TestUser> page = query.page(Paging.of(1, 10));
 
         assertEquals(sqlSession.oneResult, one);
         assertEquals(sqlSession.listResult, list);
@@ -621,15 +622,38 @@ class QueryWrapperTest {
     }
 
     @Test
-    void queryWrapperShouldRejectExecutionWithoutSqlSession() {
-        TestUserTable users = TestUserTable.USERS;
-        QueryWrapper query = Wrapper.query()
-                .selectAll()
-                .from(users)
-                .where(users.ID.eq(1L));
+    void dslContextShouldRejectNullExecutor() {
+        assertThrows(NullPointerException.class, () -> new DSLContext(null));
+    }
 
-        assertThrows(SqlExecutorException.class, () -> query.one(TestUser.class));
-        assertThrows(SqlExecutorException.class, query::count);
+    @Test
+    void selectAndSelectAllShouldBeMutuallyExclusiveInBothOrders() {
+        TestUserTable users = TestUserTable.USERS;
+
+        QueryWrapper<TestUser> selectFirst = dsl.query(TestUser.class).select(users.ID);
+        QueryWrapper<TestUser> selectAllFirst = dsl.query(TestUser.class).selectAll();
+
+        assertThrows(SqlExecutorException.class, selectFirst::selectAll);
+        assertThrows(SqlExecutorException.class, () -> selectAllFirst.select(users.ID));
+    }
+
+    @Test
+    void entityQueryShouldExecuteAllTerminalsWithoutResultTypeArguments() {
+        RecordingSqlExecutor sqlExecutor = new RecordingSqlExecutor();
+        DSLContext context = new DSLContext(sqlExecutor);
+
+        TestUser one = context.from(TestUserTable.USERS).one();
+        List<TestUser> list = context.from(TestUserTable.USERS).list();
+        Page<TestUser> page = context.from(TestUserTable.USERS).page(1, 10);
+        long count = context.from(TestUserTable.USERS).count();
+        boolean exists = context.from(TestUserTable.USERS).exists();
+
+        assertEquals(sqlExecutor.oneResult, one);
+        assertEquals(sqlExecutor.listResult, list);
+        assertEquals(sqlExecutor.listResult, page.records());
+        assertEquals(3L, page.total());
+        assertEquals(3L, count);
+        assertEquals(true, exists);
     }
 
     @Test
@@ -637,11 +661,11 @@ class QueryWrapperTest {
         TestUserTable users = TestUserTable.USERS;
         RecordingSqlExecutor sqlExecutor = new RecordingSqlExecutor();
 
-        List<GenericRow<String>> result = Wrapper.query(sqlExecutor)
-                .select(users.NAME)
+        List<GenericRow<String>> result = new DSLContext(sqlExecutor)
+                .select(new TypeRef<GenericRow<String>>() {
+                }, users.NAME)
                 .from(users)
-                .list(new TypeRef<GenericRow<String>>() {
-                });
+                .list();
 
         assertEquals(List.of(), result);
         ParameterizedType elementType = (ParameterizedType) sqlExecutor.lastElementType;
@@ -745,6 +769,11 @@ class QueryWrapperTest {
         @Override
         public <T> List<T> selectList(String sql, Object[] args, SqlExecutionContext context, Class<T> resultType) {
             return selectList(sql, args, resultType);
+        }
+
+        @Override
+        public <T> List<T> selectList(String sql, Object[] args, SqlExecutionContext context, Type elementType) {
+            return selectList(sql, args, elementType);
         }
 
         @Override

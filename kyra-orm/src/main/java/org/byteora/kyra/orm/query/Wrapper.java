@@ -1,17 +1,7 @@
 package org.byteora.kyra.orm.query;
 
-import org.byteora.kyra.orm.runtime.SqlExecutor;
-
 public final class Wrapper {
     private Wrapper() {
-    }
-
-    public static QueryWrapper query() {
-        return new QueryWrapper();
-    }
-
-    public static QueryWrapper query(SqlExecutor sqlExecutor) {
-        return new QueryWrapper(sqlExecutor);
     }
 
     public static WhereWrapper where() {

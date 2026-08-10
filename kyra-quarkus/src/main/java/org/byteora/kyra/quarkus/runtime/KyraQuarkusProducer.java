@@ -1,5 +1,6 @@
 package org.byteora.kyra.quarkus.runtime;
 
+import org.byteora.kyra.orm.query.DSLContext;
 import org.byteora.kyra.orm.runtime.DefaultSqlGenerator;
 import org.byteora.kyra.orm.runtime.DefaultSqlPagingSupport;
 import org.byteora.kyra.orm.runtime.SqlExecutor;
@@ -38,6 +39,13 @@ public class KyraQuarkusProducer {
     @DefaultBean
     public SqlGenerator sqlGenerator() {
         return new DefaultSqlGenerator();
+    }
+
+    @Produces
+    @Singleton
+    @DefaultBean
+    public DSLContext dslContext(SqlExecutor sqlExecutor) {
+        return new DSLContext(sqlExecutor);
     }
 
     @Produces
