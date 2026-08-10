@@ -1,11 +1,11 @@
 package org.byteora.kyra.orm.runtime.dialect;
 
 import org.byteora.kyra.orm.query.Condition;
-import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Table;
 
 public record JoinItem(
         String joinType,
-        EntityTable<?> table,
+        Table<?> table,
         Condition on
 ) {
 }

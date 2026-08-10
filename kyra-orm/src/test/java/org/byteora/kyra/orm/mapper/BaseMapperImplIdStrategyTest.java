@@ -2,7 +2,7 @@ package org.byteora.kyra.orm.mapper;
 
 import org.byteora.kyra.orm.annotation.IdStrategy;
 import org.byteora.kyra.orm.query.Column;
-import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Table;
 import org.byteora.kyra.orm.query.QueryDefinition;
 import org.byteora.kyra.orm.query.Tables;
 import org.byteora.kyra.orm.query.UpdateDefinition;
@@ -224,22 +224,22 @@ public class BaseMapperImplIdStrategyTest {
         }
 
         @Override
-        public SqlRequest renderSelect(EntityTable<?> table, WhereDefinition whereDefinition, DbType dbType) {
+        public SqlRequest renderSelect(Table<?> table, WhereDefinition whereDefinition, DbType dbType) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public SqlRequest renderDelete(EntityTable<?> table, WhereDefinition whereDefinition, DbType dbType) {
+        public SqlRequest renderDelete(Table<?> table, WhereDefinition whereDefinition, DbType dbType) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public SqlRequest renderUpdate(EntityTable<?> table, UpdateDefinition updateDefinition, DbType dbType) {
+        public SqlRequest renderUpdate(Table<?> table, UpdateDefinition updateDefinition, DbType dbType) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public SqlRequest renderInsert(EntityTable<?> table, List<String> columns, List<Object> args, DbType dbType) {
+        public SqlRequest renderInsert(Table<?> table, List<String> columns, List<Object> args, DbType dbType) {
             StringBuilder sql = new StringBuilder("insert into ")
                     .append(table.tableName())
                     .append(" (");
@@ -372,7 +372,7 @@ public class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class ManualIdTable extends EntityTable<ManualIdEntity> {
+    private static final class ManualIdTable extends Table<ManualIdEntity> {
         private static final ManualIdTable MANUAL_IDS = new ManualIdTable();
         private final Column<ManualIdEntity, Long> ID = column("id", Long.class);
 
@@ -401,7 +401,7 @@ public class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class UuidTable extends EntityTable<UuidEntity> {
+    private static final class UuidTable extends Table<UuidEntity> {
         private static final UuidTable UUIDS = new UuidTable();
         private final Column<UuidEntity, String> ID = column("id", String.class);
 
@@ -430,7 +430,7 @@ public class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class CustomTable extends EntityTable<CustomEntity> {
+    private static final class CustomTable extends Table<CustomEntity> {
         private static final CustomTable CUSTOMS = new CustomTable();
         private static final SequenceIdGenerator GENERATOR = new SequenceIdGenerator();
         private final Column<CustomEntity, Long> ID = column("id", Long.class);
@@ -465,7 +465,7 @@ public class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class SessionCustomTable extends EntityTable<SessionCustomEntity> {
+    private static final class SessionCustomTable extends Table<SessionCustomEntity> {
         private static final SessionCustomTable SESSION_CUSTOMS = new SessionCustomTable();
         private final Column<SessionCustomEntity, Long> ID = column("id", Long.class);
 
@@ -494,7 +494,7 @@ public class BaseMapperImplIdStrategyTest {
         }
     }
 
-    private static final class AutoIdTable extends EntityTable<AutoIdEntity> {
+    private static final class AutoIdTable extends Table<AutoIdEntity> {
         private static final AutoIdTable AUTO_IDS = new AutoIdTable();
         private final Column<AutoIdEntity, Long> ID = column("id", Long.class);
 
@@ -527,7 +527,7 @@ public class BaseMapperImplIdStrategyTest {
         private final AtomicLong sequence = new AtomicLong(1000);
 
         @Override
-        public Object generate(SqlExecutor sqlExecutor, EntityTable<?> entityTable, Object entity) {
+        public Object generate(SqlExecutor sqlExecutor, Table<?> table, Object entity) {
             return sequence.incrementAndGet();
         }
     }
@@ -536,7 +536,7 @@ public class BaseMapperImplIdStrategyTest {
         private final AtomicLong sequence = new AtomicLong(5000);
 
         @Override
-        public Object generate(SqlExecutor sqlExecutor, EntityTable<?> entityTable, Object entity) {
+        public Object generate(SqlExecutor sqlExecutor, Table<?> table, Object entity) {
             return sequence.incrementAndGet();
         }
     }

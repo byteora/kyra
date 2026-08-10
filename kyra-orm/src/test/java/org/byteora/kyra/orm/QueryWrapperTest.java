@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import org.byteora.kyra.orm.query.Column;
 import org.byteora.kyra.orm.query.Conditions;
-import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Table;
 import org.byteora.kyra.orm.query.Functions;
 import org.byteora.kyra.orm.query.NamedSqlExpression;
 import org.byteora.kyra.orm.query.Page;
@@ -782,7 +782,7 @@ class QueryWrapperTest {
         }
     }
 
-    private static final class TestUserTable extends EntityTable<TestUser> {
+    private static final class TestUserTable extends Table<TestUser> {
         private static final TestUserTable USERS = new TestUserTable("users", null);
 
         private final Column<TestUser, Long> ID = column("id", Long.class);

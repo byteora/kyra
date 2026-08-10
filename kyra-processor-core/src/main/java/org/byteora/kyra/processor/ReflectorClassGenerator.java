@@ -50,23 +50,23 @@ public final class ReflectorClassGenerator {
         this.context = context;
     }
 
-    public byte[] buildReflectorClass(String generatedQualifiedName, TypeElement entityType) {
+    public byte[] buildReflectorClass(String generatedQualifiedName, TypeElement type) {
         String classInternalName = AsmUtils.internalName(generatedQualifiedName);
-        String entityInternalName = AsmUtils.internalName(entityType);
-        ReflectMetadataLevel metadataLevel = metadataLevel(entityType);
+        String typeInternalName = AsmUtils.internalName(type);
+        ReflectMetadataLevel metadataLevel = metadataLevel(type);
         boolean includeFieldsMetadata = metadataLevel.includesFields();
         boolean includeMethodsMetadata = metadataLevel.includesMethods();
-        boolean includeAnnotationMetadata = annotationMetadata(entityType);
-        List<VariableElement> fields = context.collectInstanceFields(entityType);
-        List<String> expandedFieldNames = context.expandedFieldNames(entityType);
-        List<ExecutableElement> methods = includeMethodsMetadata ? context.collectInvokableMethods(entityType) : List.of();
+        boolean includeAnnotationMetadata = annotationMetadata(type);
+        List<VariableElement> fields = context.collectInstanceFields(type);
+        List<String> expandedFieldNames = context.expandedFieldNames(type);
+        List<ExecutableElement> methods = includeMethodsMetadata ? context.collectInvokableMethods(type) : List.of();
         Map<String, List<ExecutableElement>> methodsByName = groupMethodsByName(methods);
-        List<String> expandedMethodNames = includeMethodsMetadata ? expandedMethodNames(entityType) : List.of();
-        TypeElement parentReflectType = resolveParentReflectType(entityType);
+        List<String> expandedMethodNames = includeMethodsMetadata ? expandedMethodNames(type) : List.of();
+        TypeElement parentReflectType = resolveParentReflectType(type);
         String parentReflectTypeName = parentReflectType == null ? null : AsmUtils.internalName(parentReflectType);
-        ExecutableElement preferredConstructor = findPreferredConstructor(entityType);
-        ExecutableElement fullArgsConstructor = findFullArgsConstructor(entityType);
-        boolean hasImplicitDefaultConstructor = constructors(entityType).isEmpty() && !entityType.getModifiers().contains(Modifier.ABSTRACT);
+        ExecutableElement preferredConstructor = findPreferredConstructor(type);
+        ExecutableElement fullArgsConstructor = findFullArgsConstructor(type);
+        boolean hasImplicitDefaultConstructor = constructors(type).isEmpty() && !type.getModifiers().contains(Modifier.ABSTRACT);
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
         cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, classInternalName, null, "java/lang/Object",
@@ -91,16 +91,16 @@ public final class ReflectorClassGenerator {
         if (includeMethodsMetadata && parentReflectTypeName != null) {
             writeMergeMethodInfos(cw);
         }
-        writeNewInstance(cw, entityType, entityInternalName, preferredConstructor, hasImplicitDefaultConstructor);
-        writeNewInstanceWithArgs(cw, entityType, entityInternalName, classInternalName, fullArgsConstructor, hasImplicitDefaultConstructor);
-        writeGetClassInfo(cw, classInternalName, entityType, includeAnnotationMetadata, fullArgsConstructor);
-        writeInvoke(cw, classInternalName, entityType, entityInternalName, methodsByName, expandedMethodNames, parentReflectTypeName);
-        writeSetByIndex(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName);
-        writeGet(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName);
-        writePrimitiveAccessors(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName);
+        writeNewInstance(cw, type, typeInternalName, preferredConstructor, hasImplicitDefaultConstructor);
+        writeNewInstanceWithArgs(cw, type, typeInternalName, classInternalName, fullArgsConstructor, hasImplicitDefaultConstructor);
+        writeGetClassInfo(cw, classInternalName, type, includeAnnotationMetadata, fullArgsConstructor);
+        writeInvoke(cw, classInternalName, type, typeInternalName, methodsByName, expandedMethodNames, parentReflectTypeName);
+        writeSetByIndex(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName);
+        writeGet(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName);
+        writePrimitiveAccessors(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName);
         writeGetFields(cw, classInternalName, includeFieldsMetadata, parentReflectTypeName);
         writeFieldIndex(cw, classInternalName, expandedFieldNames, includeFieldsMetadata, parentReflectTypeName);
-        writeGetField(cw, classInternalName, entityType, fields, expandedFieldNames, includeFieldsMetadata, includeAnnotationMetadata, parentReflectTypeName);
+        writeGetField(cw, classInternalName, type, fields, expandedFieldNames, includeFieldsMetadata, includeAnnotationMetadata, parentReflectTypeName);
         writeGetMethods(cw, classInternalName, includeMethodsMetadata, expandedMethodNames, parentReflectTypeName);
         writeMethodIndex(cw, classInternalName, expandedMethodNames, includeMethodsMetadata, parentReflectTypeName);
         writeGetMethod(cw, classInternalName, methodsByName, expandedMethodNames, includeMethodsMetadata, includeAnnotationMetadata, parentReflectTypeName);
@@ -109,18 +109,18 @@ public final class ReflectorClassGenerator {
         return cw.toByteArray();
     }
 
-    private ReflectMetadataLevel metadataLevel(TypeElement entityType) {
-        ReflectSpec reflectSpec = context.reflectSpec(entityType);
+    private ReflectMetadataLevel metadataLevel(TypeElement type) {
+        ReflectSpec reflectSpec = context.reflectSpec(type);
         return reflectSpec == null ? ReflectMetadataLevel.BASIC : reflectSpec.metadataLevel();
     }
 
-    private boolean annotationMetadata(TypeElement entityType) {
-        ReflectSpec reflectSpec = context.reflectSpec(entityType);
+    private boolean annotationMetadata(TypeElement type) {
+        ReflectSpec reflectSpec = context.reflectSpec(type);
         return reflectSpec != null && reflectSpec.annotationMetadata();
     }
 
-    private TypeElement resolveParentReflectType(TypeElement entityType) {
-        TypeElement declaredSuperType = context.directSuperType(entityType);
+    private TypeElement resolveParentReflectType(TypeElement type) {
+        TypeElement declaredSuperType = context.directSuperType(type);
         if (declaredSuperType == null || context.isJavaLangObject(declaredSuperType)) {
             return null;
         }
@@ -272,19 +272,19 @@ public final class ReflectorClassGenerator {
         mv.visitEnd();
     }
 
-    private void writeNewInstance(ClassWriter cw, TypeElement entityType, String entityInternalName, ExecutableElement constructor, boolean hasImplicitDefaultConstructor) {
+    private void writeNewInstance(ClassWriter cw, TypeElement type, String typeInternalName, ExecutableElement constructor, boolean hasImplicitDefaultConstructor) {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "newInstance", "()Ljava/lang/Object;", null, null);
         mv.visitCode();
-        if (entityType.getModifiers().contains(Modifier.ABSTRACT) || (constructor == null && !hasImplicitDefaultConstructor)) {
-            emitUnsupported(mv, "Type cannot be instantiated without accessible constructor: " + entityType.getQualifiedName());
+        if (type.getModifiers().contains(Modifier.ABSTRACT) || (constructor == null && !hasImplicitDefaultConstructor)) {
+            emitUnsupported(mv, "Type cannot be instantiated without accessible constructor: " + type.getQualifiedName());
         } else {
-            mv.visitTypeInsn(Opcodes.NEW, entityInternalName);
+            mv.visitTypeInsn(Opcodes.NEW, typeInternalName);
             mv.visitInsn(Opcodes.DUP);
             List<? extends VariableElement> parameters = constructor == null ? List.of() : constructor.getParameters();
             for (VariableElement parameter : parameters) {
                 emitDefaultValue(mv, parameter.asType());
             }
-            mv.visitMethodInsn(Opcodes.INVOKESPECIAL, entityInternalName, "<init>",
+            mv.visitMethodInsn(Opcodes.INVOKESPECIAL, typeInternalName, "<init>",
                     AsmUtils.methodDescriptor(context.voidType(), parameters.stream().map(VariableElement::asType).toList(), context.types()), false);
             mv.visitInsn(Opcodes.ARETURN);
         }
@@ -292,7 +292,7 @@ public final class ReflectorClassGenerator {
         mv.visitEnd();
     }
 
-    private void writeNewInstanceWithArgs(ClassWriter cw, TypeElement entityType, String entityInternalName, String classInternalName, ExecutableElement constructor, boolean hasImplicitDefaultConstructor) {
+    private void writeNewInstanceWithArgs(ClassWriter cw, TypeElement type, String typeInternalName, String classInternalName, ExecutableElement constructor, boolean hasImplicitDefaultConstructor) {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "newInstance", "([Ljava/lang/Object;)Ljava/lang/Object;", null, null);
         mv.visitCode();
         if (constructor == null) {
@@ -326,7 +326,7 @@ public final class ReflectorClassGenerator {
         mv.visitJumpInsn(Opcodes.IF_ICMPEQ, lengthOk);
         emitIllegalArgument(mv, "Unexpected constructor argument count");
         mv.visitLabel(lengthOk);
-        mv.visitTypeInsn(Opcodes.NEW, entityInternalName);
+        mv.visitTypeInsn(Opcodes.NEW, typeInternalName);
         mv.visitInsn(Opcodes.DUP);
         for (int i = 0; i < parameterCount; i++) {
             mv.visitVarInsn(Opcodes.ALOAD, 1);
@@ -334,14 +334,14 @@ public final class ReflectorClassGenerator {
             mv.visitInsn(Opcodes.AALOAD);
             AsmUtils.castFromObject(mv, constructor.getParameters().get(i).asType(), context.types());
         }
-        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, entityInternalName, "<init>",
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, typeInternalName, "<init>",
                 AsmUtils.methodDescriptor(context.voidType(), constructor.getParameters().stream().map(VariableElement::asType).toList(), context.types()), false);
         mv.visitInsn(Opcodes.ARETURN);
         mv.visitMaxs(0, 0);
         mv.visitEnd();
     }
 
-    private void writeGetClassInfo(ClassWriter cw, String classInternalName, TypeElement entityType, boolean includeAnnotationMetadata, ExecutableElement constructor) {
+    private void writeGetClassInfo(ClassWriter cw, String classInternalName, TypeElement type, boolean includeAnnotationMetadata, ExecutableElement constructor) {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "getClassInfo", "()" + CLASS_INFO_DESC, null, null);
         mv.visitCode();
         mv.visitFieldInsn(Opcodes.GETSTATIC, classInternalName, "classInfo", CLASS_INFO_DESC);
@@ -349,7 +349,7 @@ public final class ReflectorClassGenerator {
         Label cached = new Label();
         mv.visitJumpInsn(Opcodes.IFNONNULL, cached);
         mv.visitInsn(Opcodes.POP);
-        emitClassInfo(mv, classInternalName, entityType, includeAnnotationMetadata, constructor);
+        emitClassInfo(mv, classInternalName, type, includeAnnotationMetadata, constructor);
         mv.visitInsn(Opcodes.DUP);
         mv.visitFieldInsn(Opcodes.PUTSTATIC, classInternalName, "classInfo", CLASS_INFO_DESC);
         mv.visitLabel(cached);
@@ -358,28 +358,28 @@ public final class ReflectorClassGenerator {
         mv.visitEnd();
     }
 
-    private void emitClassInfo(MethodVisitor mv, String classInternalName, TypeElement entityType, boolean includeAnnotationMetadata, ExecutableElement constructor) {
+    private void emitClassInfo(MethodVisitor mv, String classInternalName, TypeElement type, boolean includeAnnotationMetadata, ExecutableElement constructor) {
         mv.visitTypeInsn(Opcodes.NEW, CLASS_INFO);
         mv.visitInsn(Opcodes.DUP);
-        AsmUtils.pushClassLiteral(mv, entityType.asType(), context.types());
-        emitTypeOrNull(mv, entityType.getSuperclass());
-        AsmUtils.pushInt(mv, modifierMask(entityType.getModifiers()));
-        emitAnnotationArray(mv, entityType.getAnnotationMirrors(), includeAnnotationMetadata, classInternalName);
+        AsmUtils.pushClassLiteral(mv, type.asType(), context.types());
+        emitTypeOrNull(mv, type.getSuperclass());
+        AsmUtils.pushInt(mv, modifierMask(type.getModifiers()));
+        emitAnnotationArray(mv, type.getAnnotationMirrors(), includeAnnotationMetadata, classInternalName);
         emitParameterInfoArray(mv, constructor == null ? List.of() : constructor.getParameters(), includeAnnotationMetadata, classInternalName);
         mv.visitMethodInsn(Opcodes.INVOKESPECIAL, CLASS_INFO, "<init>", "(Ljava/lang/Class;Ljava/lang/reflect/Type;I[" + ANNOTATION_META_DESC + "[" + PARAMETER_INFO_DESC + ")V", false);
     }
 
     private void writeInvoke(ClassWriter cw,
                              String classInternalName,
-                             TypeElement entityType,
-                             String entityInternalName,
+                             TypeElement type,
+                             String typeInternalName,
                              Map<String, List<ExecutableElement>> methodsByName,
                              List<String> expandedMethodNames,
                              String parentReflectTypeName) {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "invoke", "(Ljava/lang/Object;I[Ljava/lang/Object;)Ljava/lang/Object;", null, null);
         mv.visitCode();
         mv.visitVarInsn(Opcodes.ALOAD, 1);
-        mv.visitTypeInsn(Opcodes.CHECKCAST, entityInternalName);
+        mv.visitTypeInsn(Opcodes.CHECKCAST, typeInternalName);
         mv.visitVarInsn(Opcodes.ASTORE, 4);
         if (expandedMethodNames.isEmpty()) {
             emitIllegalArgument(mv, "Unknown method index");
@@ -399,7 +399,7 @@ public final class ReflectorClassGenerator {
             mv.visitLabel(caseLabels[i]);
             List<ExecutableElement> localMethods = methodsByName.get(methodName);
             if (localMethods != null && !localMethods.isEmpty()) {
-                emitInvokeCase(mv, localMethods.get(0), entityInternalName);
+                emitInvokeCase(mv, localMethods.get(0), typeInternalName);
             } else if (parentReflectTypeName != null) {
                 mv.visitMethodInsn(Opcodes.INVOKESTATIC, classInternalName, "parentReflector", "()" + REFLECTOR_DESC, false);
                 mv.visitVarInsn(Opcodes.ASTORE, 5);
@@ -423,17 +423,17 @@ public final class ReflectorClassGenerator {
         mv.visitEnd();
     }
 
-    private void writeSet(ClassWriter cw, String classInternalName, TypeElement entityType, String entityInternalName, List<VariableElement> fields, String parentReflectTypeName) {
+    private void writeSet(ClassWriter cw, String classInternalName, TypeElement type, String typeInternalName, List<VariableElement> fields, String parentReflectTypeName) {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "set", "(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/Object;)V", null, null);
         mv.visitCode();
         mv.visitVarInsn(Opcodes.ALOAD, 1);
-        mv.visitTypeInsn(Opcodes.CHECKCAST, entityInternalName);
+        mv.visitTypeInsn(Opcodes.CHECKCAST, typeInternalName);
         mv.visitVarInsn(Opcodes.ASTORE, 4);
         AsmUtils.emitStringEqualsDispatch(
                 mv,
                 2,
                 fields.stream().map(field -> field.getSimpleName().toString()).toList(),
-                index -> emitSetCase(mv, entityType, entityInternalName, fields.get(index)),
+                index -> emitSetCase(mv, type, typeInternalName, fields.get(index)),
                 () -> emitSetDefault(mv, classInternalName, parentReflectTypeName)
         );
         mv.visitInsn(Opcodes.RETURN);
@@ -443,15 +443,15 @@ public final class ReflectorClassGenerator {
 
     private void writeSetByIndex(ClassWriter cw,
                                  String classInternalName,
-                                 TypeElement entityType,
-                                 String entityInternalName,
+                                 TypeElement type,
+                                 String typeInternalName,
                                  List<VariableElement> fields,
                                  List<String> expandedFieldNames,
                                  String parentReflectTypeName) {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "set", "(Ljava/lang/Object;ILjava/lang/Object;)V", null, null);
         mv.visitCode();
         mv.visitVarInsn(Opcodes.ALOAD, 1);
-        mv.visitTypeInsn(Opcodes.CHECKCAST, entityInternalName);
+        mv.visitTypeInsn(Opcodes.CHECKCAST, typeInternalName);
         mv.visitVarInsn(Opcodes.ASTORE, 4);
         if (expandedFieldNames.isEmpty()) {
             emitIllegalArgument(mv, "Unknown property index");
@@ -475,7 +475,7 @@ public final class ReflectorClassGenerator {
             String fieldName = expandedFieldNames.get(i);
             VariableElement field = localFields.get(fieldName);
             if (field != null) {
-                emitSetCase(mv, entityType, entityInternalName, field);
+                emitSetCase(mv, type, typeInternalName, field);
             } else if (parentReflectTypeName != null) {
                 mv.visitMethodInsn(Opcodes.INVOKESTATIC, classInternalName, "parentReflector", "()" + REFLECTOR_DESC, false);
                 mv.visitVarInsn(Opcodes.ASTORE, 5);
@@ -501,15 +501,15 @@ public final class ReflectorClassGenerator {
 
     private void writeGet(ClassWriter cw,
                           String classInternalName,
-                          TypeElement entityType,
-                          String entityInternalName,
+                          TypeElement type,
+                          String typeInternalName,
                           List<VariableElement> fields,
                           List<String> expandedFieldNames,
                           String parentReflectTypeName) {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "get", "(Ljava/lang/Object;I)Ljava/lang/Object;", null, null);
         mv.visitCode();
         mv.visitVarInsn(Opcodes.ALOAD, 1);
-        mv.visitTypeInsn(Opcodes.CHECKCAST, entityInternalName);
+        mv.visitTypeInsn(Opcodes.CHECKCAST, typeInternalName);
         mv.visitVarInsn(Opcodes.ASTORE, 3);
         if (expandedFieldNames.isEmpty()) {
             emitIllegalArgument(mv, "Unknown property index");
@@ -533,7 +533,7 @@ public final class ReflectorClassGenerator {
             mv.visitLabel(caseLabels[i]);
             VariableElement field = localFields.get(fieldName);
             if (field != null) {
-                emitGetCase(mv, entityType, entityInternalName, field);
+                emitGetCase(mv, type, typeInternalName, field);
             } else if (parentReflectTypeName != null) {
                 mv.visitMethodInsn(Opcodes.INVOKESTATIC, classInternalName, "parentReflector", "()" + REFLECTOR_DESC, false);
                 mv.visitVarInsn(Opcodes.ASTORE, 4);
@@ -603,7 +603,7 @@ public final class ReflectorClassGenerator {
         mv.visitEnd();
     }
 
-    private void writeGetField(ClassWriter cw, String classInternalName, TypeElement entityType, List<VariableElement> fields, List<String> expandedFieldNames, boolean includeFieldsMetadata, boolean includeAnnotationMetadata, String parentReflectTypeName) {
+    private void writeGetField(ClassWriter cw, String classInternalName, TypeElement type, List<VariableElement> fields, List<String> expandedFieldNames, boolean includeFieldsMetadata, boolean includeAnnotationMetadata, String parentReflectTypeName) {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "getField", "(I)" + FIELD_INFO_DESC, null, null);
         mv.visitCode();
         if (!includeFieldsMetadata) {
@@ -1165,7 +1165,7 @@ public final class ReflectorClassGenerator {
         return value;
     }
 
-    private void emitInvokeCase(MethodVisitor mv, ExecutableElement method, String entityInternalName) {
+    private void emitInvokeCase(MethodVisitor mv, ExecutableElement method, String typeInternalName) {
         mv.visitVarInsn(Opcodes.ALOAD, 4);
         for (int i = 0; i < method.getParameters().size(); i++) {
             mv.visitVarInsn(Opcodes.ALOAD, 3);
@@ -1173,7 +1173,7 @@ public final class ReflectorClassGenerator {
             mv.visitInsn(Opcodes.AALOAD);
             AsmUtils.castFromObject(mv, method.getParameters().get(i).asType(), context.types());
         }
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, method.getSimpleName().toString(),
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, typeInternalName, method.getSimpleName().toString(),
                 AsmUtils.methodDescriptor(method.getReturnType(), method.getParameters().stream().map(VariableElement::asType).toList(), context.types()), false);
         if (method.getReturnType().getKind() == TypeKind.VOID) {
             mv.visitInsn(Opcodes.ACONST_NULL);
@@ -1198,41 +1198,41 @@ public final class ReflectorClassGenerator {
 
     private void writePrimitiveAccessors(ClassWriter cw,
                                          String classInternalName,
-                                         TypeElement entityType,
-                                         String entityInternalName,
+                                         TypeElement type,
+                                         String typeInternalName,
                                          List<VariableElement> fields,
                                          List<String> expandedFieldNames,
                                          String parentReflectTypeName) {
-        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        maybeWritePrimitiveAccessor(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 TypeKind.BOOLEAN, "setBoolean", "(Ljava/lang/Object;IZ)V", Opcodes.ILOAD,
                 "getBoolean", "(Ljava/lang/Object;I)Z", Opcodes.IRETURN);
-        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        maybeWritePrimitiveAccessor(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 TypeKind.BYTE, "setByte", "(Ljava/lang/Object;IB)V", Opcodes.ILOAD,
                 "getByte", "(Ljava/lang/Object;I)B", Opcodes.IRETURN);
-        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        maybeWritePrimitiveAccessor(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 TypeKind.SHORT, "setShort", "(Ljava/lang/Object;IS)V", Opcodes.ILOAD,
                 "getShort", "(Ljava/lang/Object;I)S", Opcodes.IRETURN);
-        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        maybeWritePrimitiveAccessor(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 TypeKind.INT, "setInt", "(Ljava/lang/Object;II)V", Opcodes.ILOAD,
                 "getInt", "(Ljava/lang/Object;I)I", Opcodes.IRETURN);
-        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        maybeWritePrimitiveAccessor(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 TypeKind.LONG, "setLong", "(Ljava/lang/Object;IJ)V", Opcodes.LLOAD,
                 "getLong", "(Ljava/lang/Object;I)J", Opcodes.LRETURN);
-        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        maybeWritePrimitiveAccessor(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 TypeKind.CHAR, "setChar", "(Ljava/lang/Object;IC)V", Opcodes.ILOAD,
                 "getChar", "(Ljava/lang/Object;I)C", Opcodes.IRETURN);
-        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        maybeWritePrimitiveAccessor(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 TypeKind.FLOAT, "setFloat", "(Ljava/lang/Object;IF)V", Opcodes.FLOAD,
                 "getFloat", "(Ljava/lang/Object;I)F", Opcodes.FRETURN);
-        maybeWritePrimitiveAccessor(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        maybeWritePrimitiveAccessor(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 TypeKind.DOUBLE, "setDouble", "(Ljava/lang/Object;ID)V", Opcodes.DLOAD,
                 "getDouble", "(Ljava/lang/Object;I)D", Opcodes.DRETURN);
     }
 
     private void maybeWritePrimitiveAccessor(ClassWriter cw,
                                              String classInternalName,
-                                             TypeElement entityType,
-                                             String entityInternalName,
+                                             TypeElement type,
+                                             String typeInternalName,
                                              List<VariableElement> fields,
                                              List<String> expandedFieldNames,
                                              String parentReflectTypeName,
@@ -1243,17 +1243,17 @@ public final class ReflectorClassGenerator {
                                              String getMethodName,
                                              String getDescriptor,
                                              int getReturnOpcode) {
-        List<Integer> indices = primitiveFieldIndices(entityType, fields, expandedFieldNames, parentReflectTypeName, primitiveKind);
+        List<Integer> indices = primitiveFieldIndices(type, fields, expandedFieldNames, parentReflectTypeName, primitiveKind);
         if (indices.isEmpty()) {
             return;
         }
-        writePrimitiveSetter(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        writePrimitiveSetter(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 indices, primitiveKind, setMethodName, setDescriptor, setValueLoadOpcode);
-        writePrimitiveGetter(cw, classInternalName, entityType, entityInternalName, fields, expandedFieldNames, parentReflectTypeName,
+        writePrimitiveGetter(cw, classInternalName, type, typeInternalName, fields, expandedFieldNames, parentReflectTypeName,
                 indices, primitiveKind, getMethodName, getDescriptor, getReturnOpcode);
     }
 
-    private List<Integer> primitiveFieldIndices(TypeElement entityType,
+    private List<Integer> primitiveFieldIndices(TypeElement type,
                                                 List<VariableElement> localFields,
                                                 List<String> expandedFieldNames,
                                                 String parentReflectTypeName,
@@ -1264,7 +1264,7 @@ public final class ReflectorClassGenerator {
         }
         Map<String, VariableElement> parentFieldsByName = new LinkedHashMap<>();
         if (parentReflectTypeName != null) {
-            TypeElement parentType = resolveParentReflectType(entityType);
+            TypeElement parentType = resolveParentReflectType(type);
             if (parentType != null) {
                 for (VariableElement field : context.collectInstanceFields(parentType)) {
                     parentFieldsByName.put(field.getSimpleName().toString(), field);
@@ -1304,8 +1304,8 @@ public final class ReflectorClassGenerator {
 
     private void writePrimitiveSetter(ClassWriter cw,
                                       String classInternalName,
-                                      TypeElement entityType,
-                                      String entityInternalName,
+                                      TypeElement type,
+                                      String typeInternalName,
                                       List<VariableElement> fields,
                                       List<String> expandedFieldNames,
                                       String parentReflectTypeName,
@@ -1317,7 +1317,7 @@ public final class ReflectorClassGenerator {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, methodName, descriptor, null, null);
         mv.visitCode();
         mv.visitVarInsn(Opcodes.ALOAD, 1);
-        mv.visitTypeInsn(Opcodes.CHECKCAST, entityInternalName);
+        mv.visitTypeInsn(Opcodes.CHECKCAST, typeInternalName);
         // Slot 6 avoids overlap with long/double value params that occupy slots 3+4.
         mv.visitVarInsn(Opcodes.ASTORE, PRIMITIVE_SET_ENTITY_SLOT);
         Map<String, VariableElement> localFields = new LinkedHashMap<>();
@@ -1329,7 +1329,7 @@ public final class ReflectorClassGenerator {
                     String fieldName = expandedFieldNames.get(index);
                     VariableElement field = localFields.get(fieldName);
                     if (field != null) {
-                        emitSetPrimitiveCase(mv, entityType, entityInternalName, field, primitiveKind, valueLoadOpcode, PRIMITIVE_SET_ENTITY_SLOT);
+                        emitSetPrimitiveCase(mv, type, typeInternalName, field, primitiveKind, valueLoadOpcode, PRIMITIVE_SET_ENTITY_SLOT);
                     } else if (parentReflectTypeName != null) {
                         mv.visitMethodInsn(Opcodes.INVOKESTATIC, classInternalName, "parentReflector", "()" + REFLECTOR_DESC, false);
                         mv.visitVarInsn(Opcodes.ASTORE, PRIMITIVE_SET_PARENT_SLOT);
@@ -1353,8 +1353,8 @@ public final class ReflectorClassGenerator {
 
     private void writePrimitiveGetter(ClassWriter cw,
                                       String classInternalName,
-                                      TypeElement entityType,
-                                      String entityInternalName,
+                                      TypeElement type,
+                                      String typeInternalName,
                                       List<VariableElement> fields,
                                       List<String> expandedFieldNames,
                                       String parentReflectTypeName,
@@ -1366,7 +1366,7 @@ public final class ReflectorClassGenerator {
         MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, methodName, descriptor, null, null);
         mv.visitCode();
         mv.visitVarInsn(Opcodes.ALOAD, 1);
-        mv.visitTypeInsn(Opcodes.CHECKCAST, entityInternalName);
+        mv.visitTypeInsn(Opcodes.CHECKCAST, typeInternalName);
         mv.visitVarInsn(Opcodes.ASTORE, 3);
         Map<String, VariableElement> localFields = new LinkedHashMap<>();
         for (VariableElement field : fields) {
@@ -1377,7 +1377,7 @@ public final class ReflectorClassGenerator {
                     String fieldName = expandedFieldNames.get(index);
                     VariableElement field = localFields.get(fieldName);
                     if (field != null) {
-                        emitGetPrimitiveCase(mv, entityType, entityInternalName, field, primitiveKind, returnOpcode);
+                        emitGetPrimitiveCase(mv, type, typeInternalName, field, primitiveKind, returnOpcode);
                     } else if (parentReflectTypeName != null) {
                         mv.visitMethodInsn(Opcodes.INVOKESTATIC, classInternalName, "parentReflector", "()" + REFLECTOR_DESC, false);
                         mv.visitVarInsn(Opcodes.ASTORE, 4);
@@ -1434,18 +1434,18 @@ public final class ReflectorClassGenerator {
     }
 
     private void emitSetPrimitiveCase(MethodVisitor mv,
-                                      TypeElement entityType,
-                                      String entityInternalName,
+                                      TypeElement type,
+                                      String typeInternalName,
                                       VariableElement field,
                                       TypeKind primitiveKind,
                                       int valueLoadOpcode,
                                       int entitySlot) {
         String fieldName = field.getSimpleName().toString();
-        ExecutableElement setter = findMethod(entityType, "set" + context.capitalize(fieldName), 1);
+        ExecutableElement setter = findMethod(type, "set" + context.capitalize(fieldName), 1);
         if (setter != null && setter.getParameters().get(0).asType().getKind() == primitiveKind) {
             mv.visitVarInsn(Opcodes.ALOAD, entitySlot);
             mv.visitVarInsn(valueLoadOpcode, 3);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, setter.getSimpleName().toString(),
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, typeInternalName, setter.getSimpleName().toString(),
                     AsmUtils.methodDescriptor(setter.getReturnType(), setter.getParameters().stream().map(VariableElement::asType).toList(), context.types()), false);
             if (setter.getReturnType().getKind() != TypeKind.VOID) {
                 if (setter.getReturnType().getKind() == TypeKind.LONG || setter.getReturnType().getKind() == TypeKind.DOUBLE) {
@@ -1460,7 +1460,7 @@ public final class ReflectorClassGenerator {
         if (field.getModifiers().contains(Modifier.PUBLIC)) {
             mv.visitVarInsn(Opcodes.ALOAD, entitySlot);
             mv.visitVarInsn(valueLoadOpcode, 3);
-            mv.visitFieldInsn(Opcodes.PUTFIELD, entityInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
+            mv.visitFieldInsn(Opcodes.PUTFIELD, typeInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
             mv.visitInsn(Opcodes.RETURN);
             return;
         }
@@ -1468,53 +1468,53 @@ public final class ReflectorClassGenerator {
     }
 
     private void emitGetPrimitiveCase(MethodVisitor mv,
-                                      TypeElement entityType,
-                                      String entityInternalName,
+                                      TypeElement type,
+                                      String typeInternalName,
                                       VariableElement field,
                                       TypeKind primitiveKind,
                                       int returnOpcode) {
         String fieldName = field.getSimpleName().toString();
-        ExecutableElement getter = findMethod(entityType, "get" + context.capitalize(fieldName), 0);
-        ExecutableElement booleanGetter = findMethod(entityType, "is" + context.capitalize(fieldName), 0);
-        ExecutableElement recordAccessor = entityType.getKind() == ElementKind.RECORD ? findMethod(entityType, fieldName, 0) : null;
+        ExecutableElement getter = findMethod(type, "get" + context.capitalize(fieldName), 0);
+        ExecutableElement booleanGetter = findMethod(type, "is" + context.capitalize(fieldName), 0);
+        ExecutableElement recordAccessor = type.getKind() == ElementKind.RECORD ? findMethod(type, fieldName, 0) : null;
         if (getter != null && getter.getReturnType().getKind() == primitiveKind) {
             mv.visitVarInsn(Opcodes.ALOAD, 3);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, getter.getSimpleName().toString(),
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, typeInternalName, getter.getSimpleName().toString(),
                     AsmUtils.methodDescriptor(getter.getReturnType(), List.of(), context.types()), false);
             mv.visitInsn(returnOpcode);
             return;
         }
         if (booleanGetter != null && booleanGetter.getReturnType().getKind() == primitiveKind) {
             mv.visitVarInsn(Opcodes.ALOAD, 3);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, booleanGetter.getSimpleName().toString(),
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, typeInternalName, booleanGetter.getSimpleName().toString(),
                     AsmUtils.methodDescriptor(booleanGetter.getReturnType(), List.of(), context.types()), false);
             mv.visitInsn(returnOpcode);
             return;
         }
         if (recordAccessor != null && recordAccessor.getReturnType().getKind() == primitiveKind) {
             mv.visitVarInsn(Opcodes.ALOAD, 3);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, recordAccessor.getSimpleName().toString(),
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, typeInternalName, recordAccessor.getSimpleName().toString(),
                     AsmUtils.methodDescriptor(recordAccessor.getReturnType(), List.of(), context.types()), false);
             mv.visitInsn(returnOpcode);
             return;
         }
         if (field.getModifiers().contains(Modifier.PUBLIC)) {
             mv.visitVarInsn(Opcodes.ALOAD, 3);
-            mv.visitFieldInsn(Opcodes.GETFIELD, entityInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
+            mv.visitFieldInsn(Opcodes.GETFIELD, typeInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
             mv.visitInsn(returnOpcode);
             return;
         }
         emitUnsupported(mv, "No getter or field access for property: " + fieldName);
     }
 
-    private void emitSetCase(MethodVisitor mv, TypeElement entityType, String entityInternalName, VariableElement field) {
+    private void emitSetCase(MethodVisitor mv, TypeElement type, String typeInternalName, VariableElement field) {
         String fieldName = field.getSimpleName().toString();
-        ExecutableElement setter = findMethod(entityType, "set" + context.capitalize(fieldName), 1);
+        ExecutableElement setter = findMethod(type, "set" + context.capitalize(fieldName), 1);
         if (setter != null) {
             mv.visitVarInsn(Opcodes.ALOAD, 4);
             mv.visitVarInsn(Opcodes.ALOAD, 3);
             AsmUtils.castFromObject(mv, field.asType(), context.types());
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, setter.getSimpleName().toString(),
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, typeInternalName, setter.getSimpleName().toString(),
                     AsmUtils.methodDescriptor(setter.getReturnType(), setter.getParameters().stream().map(VariableElement::asType).toList(), context.types()), false);
             if (setter.getReturnType().getKind() != TypeKind.VOID) {
                 if (setter.getReturnType().getKind() == TypeKind.LONG || setter.getReturnType().getKind() == TypeKind.DOUBLE) {
@@ -1530,7 +1530,7 @@ public final class ReflectorClassGenerator {
             mv.visitVarInsn(Opcodes.ALOAD, 4);
             mv.visitVarInsn(Opcodes.ALOAD, 3);
             AsmUtils.castFromObject(mv, field.asType(), context.types());
-            mv.visitFieldInsn(Opcodes.PUTFIELD, entityInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
+            mv.visitFieldInsn(Opcodes.PUTFIELD, typeInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
             mv.visitInsn(Opcodes.RETURN);
             return;
         }
@@ -1547,14 +1547,14 @@ public final class ReflectorClassGenerator {
         }
     }
 
-    private void emitGetCase(MethodVisitor mv, TypeElement entityType, String entityInternalName, VariableElement field) {
+    private void emitGetCase(MethodVisitor mv, TypeElement type, String typeInternalName, VariableElement field) {
         String fieldName = field.getSimpleName().toString();
-        ExecutableElement getter = findMethod(entityType, "get" + context.capitalize(fieldName), 0);
-        ExecutableElement booleanGetter = findMethod(entityType, "is" + context.capitalize(fieldName), 0);
-        ExecutableElement recordAccessor = entityType.getKind() == ElementKind.RECORD ? findMethod(entityType, fieldName, 0) : null;
+        ExecutableElement getter = findMethod(type, "get" + context.capitalize(fieldName), 0);
+        ExecutableElement booleanGetter = findMethod(type, "is" + context.capitalize(fieldName), 0);
+        ExecutableElement recordAccessor = type.getKind() == ElementKind.RECORD ? findMethod(type, fieldName, 0) : null;
         if (getter != null) {
             mv.visitVarInsn(Opcodes.ALOAD, 3);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, getter.getSimpleName().toString(),
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, typeInternalName, getter.getSimpleName().toString(),
                     AsmUtils.methodDescriptor(getter.getReturnType(), List.of(), context.types()), false);
             if (getter.getReturnType().getKind().isPrimitive()) {
                 AsmUtils.box(mv, getter.getReturnType());
@@ -1564,7 +1564,7 @@ public final class ReflectorClassGenerator {
         }
         if (booleanGetter != null) {
             mv.visitVarInsn(Opcodes.ALOAD, 3);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, booleanGetter.getSimpleName().toString(),
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, typeInternalName, booleanGetter.getSimpleName().toString(),
                     AsmUtils.methodDescriptor(booleanGetter.getReturnType(), List.of(), context.types()), false);
             if (booleanGetter.getReturnType().getKind().isPrimitive()) {
                 AsmUtils.box(mv, booleanGetter.getReturnType());
@@ -1574,7 +1574,7 @@ public final class ReflectorClassGenerator {
         }
         if (recordAccessor != null) {
             mv.visitVarInsn(Opcodes.ALOAD, 3);
-            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, entityInternalName, recordAccessor.getSimpleName().toString(),
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, typeInternalName, recordAccessor.getSimpleName().toString(),
                     AsmUtils.methodDescriptor(recordAccessor.getReturnType(), List.of(), context.types()), false);
             if (recordAccessor.getReturnType().getKind().isPrimitive()) {
                 AsmUtils.box(mv, recordAccessor.getReturnType());
@@ -1584,7 +1584,7 @@ public final class ReflectorClassGenerator {
         }
         if (field.getModifiers().contains(Modifier.PUBLIC)) {
             mv.visitVarInsn(Opcodes.ALOAD, 3);
-            mv.visitFieldInsn(Opcodes.GETFIELD, entityInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
+            mv.visitFieldInsn(Opcodes.GETFIELD, typeInternalName, fieldName, AsmUtils.descriptor(field.asType(), context.types()));
             if (field.asType().getKind().isPrimitive()) {
                 AsmUtils.box(mv, field.asType());
             }
@@ -1684,11 +1684,11 @@ public final class ReflectorClassGenerator {
         mv.visitLdcInsn(String.valueOf(raw));
     }
 
-    private ExecutableElement findPreferredConstructor(TypeElement entityType) {
-        if (entityType.getModifiers().contains(Modifier.ABSTRACT)) {
+    private ExecutableElement findPreferredConstructor(TypeElement type) {
+        if (type.getModifiers().contains(Modifier.ABSTRACT)) {
             return null;
         }
-        List<ExecutableElement> constructors = constructors(entityType);
+        List<ExecutableElement> constructors = constructors(type);
         ExecutableElement preferred = null;
         for (ExecutableElement constructor : constructors) {
             if (!constructor.getModifiers().contains(Modifier.PUBLIC)) {
@@ -1705,9 +1705,9 @@ public final class ReflectorClassGenerator {
         return preferred;
     }
 
-    private ExecutableElement findFullArgsConstructor(TypeElement entityType) {
+    private ExecutableElement findFullArgsConstructor(TypeElement type) {
         ExecutableElement preferred = null;
-        for (ExecutableElement constructor : constructors(entityType)) {
+        for (ExecutableElement constructor : constructors(type)) {
             if (!constructor.getModifiers().contains(Modifier.PUBLIC)) {
                 continue;
             }
@@ -1718,9 +1718,9 @@ public final class ReflectorClassGenerator {
         return preferred;
     }
 
-    private List<ExecutableElement> constructors(TypeElement entityType) {
+    private List<ExecutableElement> constructors(TypeElement type) {
         List<ExecutableElement> constructors = new ArrayList<>();
-        for (Element enclosedElement : entityType.getEnclosedElements()) {
+        for (Element enclosedElement : type.getEnclosedElements()) {
             if (enclosedElement.getKind() == ElementKind.CONSTRUCTOR) {
                 constructors.add((ExecutableElement) enclosedElement);
             }
@@ -1736,12 +1736,12 @@ public final class ReflectorClassGenerator {
         return methodsByName;
     }
 
-    private List<String> expandedMethodNames(TypeElement entityType) {
+    private List<String> expandedMethodNames(TypeElement type) {
         LinkedHashMap<String, Boolean> names = new LinkedHashMap<>();
-        for (ExecutableElement method : context.collectInvokableMethods(entityType)) {
+        for (ExecutableElement method : context.collectInvokableMethods(type)) {
             names.putIfAbsent(method.getSimpleName().toString(), Boolean.TRUE);
         }
-        TypeElement parentType = resolveParentReflectType(entityType);
+        TypeElement parentType = resolveParentReflectType(type);
         if (parentType != null) {
             for (String name : expandedMethodNames(parentType)) {
                 names.putIfAbsent(name, Boolean.TRUE);
@@ -1766,12 +1766,12 @@ public final class ReflectorClassGenerator {
         Types types();
         TypeElement objectTypeElement();
         TypeMirror voidType();
-        ReflectSpec reflectSpec(TypeElement entityType);
-        List<VariableElement> collectInstanceFields(TypeElement entityType);
-        List<ExecutableElement> collectInvokableMethods(TypeElement entityType);
-        List<String> expandedFieldNames(TypeElement entityType);
+        ReflectSpec reflectSpec(TypeElement type);
+        List<VariableElement> collectInstanceFields(TypeElement type);
+        List<ExecutableElement> collectInvokableMethods(TypeElement type);
+        List<String> expandedFieldNames(TypeElement type);
         boolean hasReflectSpec(TypeElement typeElement);
-        TypeElement directSuperType(TypeElement entityType);
+        TypeElement directSuperType(TypeElement type);
         boolean isJavaLangObject(TypeElement typeElement);
         String fieldAlias(VariableElement field);
         String capitalize(String value);

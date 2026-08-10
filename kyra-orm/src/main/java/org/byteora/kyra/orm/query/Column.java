@@ -4,17 +4,17 @@ import org.byteora.kyra.orm.runtime.dialect.RenderContext;
 import org.byteora.kyra.orm.runtime.dialect.SqlDialects;
 
 public final class Column<T, V> implements SqlExpression {
-    private final EntityTable<T> table;
+    private final Table<T> table;
     private final String columnName;
     private final Class<V> javaType;
 
-    Column(EntityTable<T> table, String columnName, Class<V> javaType) {
+    Column(Table<T> table, String columnName, Class<V> javaType) {
         this.table = table;
         this.columnName = columnName;
         this.javaType = javaType;
     }
 
-    public EntityTable<T> table() {
+    public Table<T> table() {
         return table;
     }
 

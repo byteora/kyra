@@ -6,12 +6,12 @@ import org.byteora.kyra.orm.runtime.SqlExecutor;
 
 @MapperCapability(ViewTypeMapper.class)
 public class ViewTypeMapperImpl<T> extends AbstractMapper<T> implements ViewTypeMapper<T> {
-    public ViewTypeMapperImpl(SqlExecutor sqlExecutor, Class<T> entityClass) {
-        super(sqlExecutor, entityClass);
+    public ViewTypeMapperImpl(SqlExecutor sqlExecutor, Class<T> type) {
+        super(sqlExecutor, type);
     }
 
     @Override
     public String mappedTypeName() {
-        return entityClass == null ? "null" : entityClass.getName();
+        return type == null ? "null" : type.getName();
     }
 }

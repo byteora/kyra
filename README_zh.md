@@ -105,7 +105,7 @@ package com.example.simple.config;
 import org.byteora.kyra.orm.annotation.KyraScan;
 
 @KyraScan(
-        entity = {"com.example.simple.entity"},
+        tables = {"com.example.simple.entity"},
         mapper = {"com.example.simple.mapper"}
 )
 public class KyraSimpleConfig {
@@ -385,8 +385,8 @@ public interface UpdateMapper<T> {
 
 @MapperCapability(UpdateMapper.class)
 public class UpdateMapperImpl<T> extends AbstractMapper<T> implements UpdateMapper<T> {
-    public UpdateMapperImpl(SqlSession sqlSession, Class<?> entityClass) {
-        super(sqlSession, entityClass);
+    public UpdateMapperImpl(SqlSession sqlSession, Class<?> type) {
+        super(sqlSession, type);
     }
 
     @Override
@@ -403,7 +403,7 @@ public class UpdateMapperImpl<T> extends AbstractMapper<T> implements UpdateMapp
 
 - `(SqlSession)`
 - `(SqlSession, Class<?>)`
-- `(SqlSession, EntityTable<?>)`
+- `(SqlSession, Table<?>)`
 
 ## SQL Dialect SPI
 
@@ -494,9 +494,9 @@ List<User> users = Sql.selectList(
 - `Sql.from(table)`
 默认 `selectAll().from(table)`，适合从单表快速起查询
 - `Sql.select(table, conditions...)`
-默认单条查询语义，内部会执行 `.one(table.entityType())`
+默认单条查询语义，内部会执行 `.one(table.type())`
 - `Sql.selectList(table, conditions...)`
-默认多条查询语义，内部会执行 `.list(table.entityType())`
+默认多条查询语义，内部会执行 `.list(table.type())`
 
 也支持直接静态 CRUD：
 
@@ -630,7 +630,7 @@ dependencies {
 - `@KyraScan` 生成表/Reflector，并通过 registry 按需安装
 
 REST DTO 必须有生成的 Reflector。独立 DTO 添加 `@Reflect`；位于
-`@KyraScan(entity = {...})` 包中的实体已经自动覆盖。Provider 会保留端点的泛型类型，
+`@KyraScan(tables = {...})` 包中的实体已经自动覆盖。Provider 会保留端点的泛型类型，
 并直接使用 `JsonMapper` 的字节 API，不产生中间 `String`。
 
 默认 Mapper 是 Quarkus `@DefaultBean`，应用可以通过 CDI Producer 覆盖：
@@ -652,7 +652,7 @@ JsonMapper jsonMapper() {
 
 ```java
 @KyraScan(
-        entity = {"com.example.quarkus.entity"},
+        tables = {"com.example.quarkus.entity"},
         mapper = {"com.example.quarkus.mapper"}
 )
 public class KyraQuarkusConfig {

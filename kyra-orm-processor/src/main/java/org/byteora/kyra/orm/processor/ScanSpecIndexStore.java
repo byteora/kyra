@@ -48,11 +48,11 @@ final class ScanSpecIndexStore {
             for (ScanConfigMetadata item : metadata) {
                 writer.write(item.configQualifiedName());
                 writer.write('|');
-                writer.write(String.join(",", item.entityPackages()));
+                writer.write(String.join(",", item.tablePackages()));
                 writer.write('|');
                 writer.write(String.join(",", item.mapperPackages()));
                 writer.write('|');
-                writer.write(String.join(",", item.entityTypeNames()));
+                writer.write(String.join(",", item.typeNames()));
                 writer.write('|');
                 writer.write(String.join(",", item.mapperTypeNames()));
                 writer.write('\n');
@@ -90,9 +90,9 @@ final class ScanSpecIndexStore {
 
     record ScanConfigMetadata(
             String configQualifiedName,
-            List<String> entityPackages,
+            List<String> tablePackages,
             List<String> mapperPackages,
-            List<String> entityTypeNames,
+            List<String> typeNames,
             List<String> mapperTypeNames
     ) {
     }

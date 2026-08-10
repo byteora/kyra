@@ -23,18 +23,26 @@ class GeneratedSupportIndexStoreTest {
         store.upsertReflector("missing.User", "gen.demo.MissingReflector");
         store.write(List.of());
         store.writeReflectorInstallerService("gen.demo.DemoReflectorInstaller", List.of());
+        assertEquals(
+                """
+                        REFLECTOR|com.example.User|gen.demo.UserReflector
+                        REFLECTOR|missing.User|gen.demo.MissingReflector
+                        TABLE|com.example.User|gen.demo.UserTable
+                        """,
+                Files.readString(tempDir.resolve("class-output/gen/kyra-generated.idx"))
+        );
 
         GeneratedSupportIndexStore reloaded = new GeneratedSupportIndexStore(new TestFiler(tempDir));
-        reloaded.load((entityTypeName, generatedTypeName) -> !entityTypeName.startsWith("missing."));
+        reloaded.load((typeName, generatedTypeName) -> !typeName.startsWith("missing."));
 
         assertEquals(1, reloaded.reflectors().size());
-        assertEquals("com.example.User", reloaded.reflectors().getFirst().entityTypeName());
+        assertEquals("com.example.User", reloaded.reflectors().getFirst().typeName());
         assertEquals(1, reloaded.tables().size());
         assertTrue(reloaded.isDirty());
 
         reloaded.write(List.of());
         GeneratedSupportIndexStore rewritten = new GeneratedSupportIndexStore(new TestFiler(tempDir));
-        rewritten.load((entityTypeName, generatedTypeName) -> true);
+        rewritten.load((typeName, generatedTypeName) -> true);
 
         assertEquals(1, rewritten.reflectors().size());
         assertEquals("gen.demo.UserReflector", rewritten.reflectors().getFirst().reflectorTypeName());
@@ -55,11 +63,11 @@ class GeneratedSupportIndexStoreTest {
         store.write(List.of());
 
         // Mirrors the processor validator under IDEA JPS incremental builds:
-        // an entity that cannot be resolved this round (treated as null ->
+        // a type that cannot be resolved this round (treated as null ->
         // returns true) must be retained, not pruned, so the index never
         // shrinks one-way across incremental rounds.
         GeneratedSupportIndexStore reloaded = new GeneratedSupportIndexStore(new TestFiler(tempDir));
-        reloaded.load((entityTypeName, generatedTypeName) -> true);
+        reloaded.load((typeName, generatedTypeName) -> true);
 
         assertEquals(2, reloaded.reflectors().size());
         assertEquals(1, reloaded.tables().size());
@@ -67,7 +75,7 @@ class GeneratedSupportIndexStoreTest {
 
         reloaded.write(List.of());
         GeneratedSupportIndexStore rewritten = new GeneratedSupportIndexStore(new TestFiler(tempDir));
-        rewritten.load((entityTypeName, generatedTypeName) -> true);
+        rewritten.load((typeName, generatedTypeName) -> true);
 
         assertEquals(2, rewritten.reflectors().size());
         assertEquals(1, rewritten.tables().size());

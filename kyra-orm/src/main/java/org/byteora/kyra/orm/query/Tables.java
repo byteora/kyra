@@ -7,40 +7,40 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 
 /**
- * Registry of {@link EntityTable} instances keyed by entity type.
+ * Registry of {@link Table} instances keyed by Java type.
  *
  * <p>Mirrors {@code ReflectorRegistry}: reflectors/tables are installed eagerly
  * via {@link TableInstaller} services on the first registry access (or an
  * explicit {@link #installAll()}). Storage is an append-only, read-mostly
- * structure that keeps tables once in an {@code index -> EntityTable} array with
+ * structure that keeps tables once in an {@code index -> Table} array with
  * a compact open-addressing {@code Class -> index} table, avoiding the per-entry
  * node allocation of a {@link java.util.Map}. The snapshot is immutable and
  * published through a {@code volatile} field so reads are lock-free.
  */
 public final class Tables {
     private static volatile TableInstaller[] installers;
-    private static volatile Table table = Table.EMPTY;
+    private static volatile Snapshot snapshot = Snapshot.EMPTY;
     private static volatile boolean installedAll;
 
     private Tables() {
     }
 
-    public static synchronized <T> void register(Class<T> entityType, EntityTable<? extends T> entityTable) {
-        Objects.requireNonNull(entityType, "entityType");
-        Objects.requireNonNull(entityTable, "entityTable");
-        Table current = table;
-        int existing = current.indexOfClass(entityType);
+    public static synchronized <T> void register(Class<T> type, Table<? extends T> table) {
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(table, "table");
+        Snapshot current = snapshot;
+        int existing = current.indexOfClass(type);
         if (existing >= 0) {
-            EntityTable<?>[] tables = current.tables.clone();
-            tables[existing] = entityTable;
-            table = new Table(current.types, tables, current.classKeys, current.classSlots, current.size);
+            Table<?>[] tables = current.tables.clone();
+            tables[existing] = table;
+            snapshot = new Snapshot(current.types, tables, current.classKeys, current.classSlots, current.size);
             return;
         }
         int newSize = current.size + 1;
         Class<?>[] types = Arrays.copyOf(current.types, newSize);
-        EntityTable<?>[] tables = Arrays.copyOf(current.tables, newSize);
-        types[current.size] = entityType;
-        tables[current.size] = entityTable;
+        Table<?>[] tables = Arrays.copyOf(current.tables, newSize);
+        types[current.size] = type;
+        tables[current.size] = table;
 
         int capacity = capacityFor(newSize);
         Class<?>[] classKeys = new Class<?>[capacity];
@@ -48,34 +48,34 @@ public final class Tables {
         for (int i = 0; i < newSize; i++) {
             insertClass(classKeys, classSlots, types[i], i);
         }
-        table = new Table(types, tables, classKeys, classSlots, newSize);
+        snapshot = new Snapshot(types, tables, classKeys, classSlots, newSize);
     }
 
     @SuppressWarnings("unchecked")
-    public static <T> EntityTable<T> get(Class<T> entityType) {
-        Objects.requireNonNull(entityType, "entityType");
+    public static <T> Table<T> get(Class<T> type) {
+        Objects.requireNonNull(type, "type");
         ensureInstalledAll();
-        Table current = table;
-        int index = current.indexOfClass(entityType);
+        Snapshot current = snapshot;
+        int index = current.indexOfClass(type);
         if (index < 0) {
-            throw new SqlExecutorException("No EntityTable registered for type: " + entityType.getName());
+            throw new SqlExecutorException("No Table registered for type: " + type.getName());
         }
-        return (EntityTable<T>) current.tables[index];
+        return (Table<T>) current.tables[index];
     }
 
-    public static int indexOf(Class<?> entityType) {
-        Objects.requireNonNull(entityType, "entityType");
+    public static int indexOf(Class<?> type) {
+        Objects.requireNonNull(type, "type");
         ensureInstalledAll();
-        return table.indexOfClass(entityType);
+        return snapshot.indexOfClass(type);
     }
 
     public static int size() {
         ensureInstalledAll();
-        return table.size;
+        return snapshot.size;
     }
 
     public static synchronized void clear() {
-        table = Table.EMPTY;
+        snapshot = Snapshot.EMPTY;
         installedAll = false;
     }
 
@@ -141,16 +141,16 @@ public final class Tables {
         return (hash ^ (hash >>> 16)) & 0x7fffffff;
     }
 
-    private static final class Table {
-        static final Table EMPTY = new Table(new Class<?>[0], new EntityTable<?>[0], new Class<?>[0], new int[0], 0);
+    private static final class Snapshot {
+        static final Snapshot EMPTY = new Snapshot(new Class<?>[0], new Table<?>[0], new Class<?>[0], new int[0], 0);
 
         final Class<?>[] types;
-        final EntityTable<?>[] tables;
+        final Table<?>[] tables;
         final Class<?>[] classKeys;
         final int[] classSlots;
         final int size;
 
-        Table(Class<?>[] types, EntityTable<?>[] tables, Class<?>[] classKeys, int[] classSlots, int size) {
+        Snapshot(Class<?>[] types, Table<?>[] tables, Class<?>[] classKeys, int[] classSlots, int size) {
             this.types = types;
             this.tables = tables;
             this.classKeys = classKeys;

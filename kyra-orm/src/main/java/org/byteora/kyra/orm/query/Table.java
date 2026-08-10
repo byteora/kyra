@@ -1,27 +1,27 @@
 package org.byteora.kyra.orm.query;
 
 import org.byteora.kyra.orm.annotation.IdStrategy;
-import org.byteora.kyra.orm.runtime.IdGenerator;
 import org.byteora.kyra.orm.runtime.DbType;
+import org.byteora.kyra.orm.runtime.IdGenerator;
 import org.byteora.kyra.orm.runtime.dialect.SqlDialects;
 
-public abstract class EntityTable<T> {
-    private final Class<T> entityType;
+public abstract class Table<T> {
+    private final Class<T> type;
     private final String tableName;
     private final String alias;
 
-    protected EntityTable(Class<T> entityType, String tableName) {
-        this(entityType, tableName, null);
+    protected Table(Class<T> type, String tableName) {
+        this(type, tableName, null);
     }
 
-    protected EntityTable(Class<T> entityType, String tableName, String alias) {
-        this.entityType = entityType;
+    protected Table(Class<T> type, String tableName, String alias) {
+        this.type = type;
         this.tableName = tableName;
         this.alias = alias;
     }
 
-    public final Class<T> entityType() {
-        return entityType;
+    public final Class<T> type() {
+        return type;
     }
 
     public final String tableName() {

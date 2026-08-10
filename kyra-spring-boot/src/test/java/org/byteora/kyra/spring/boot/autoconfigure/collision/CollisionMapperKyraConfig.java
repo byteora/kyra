@@ -3,7 +3,7 @@ package org.byteora.kyra.spring.boot.autoconfigure.collision;
 import org.byteora.kyra.orm.annotation.KyraScan;
 
 @KyraScan(
-        entity = {
+        tables = {
                 "org.byteora.kyra.spring.boot.autoconfigure.collision.left",
                 "org.byteora.kyra.spring.boot.autoconfigure.collision.right"
         },

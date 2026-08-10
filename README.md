@@ -105,7 +105,7 @@ package com.example.simple.config;
 import org.byteora.kyra.orm.annotation.KyraScan;
 
 @KyraScan(
-        entity = {"com.example.simple.entity"},
+        tables = {"com.example.simple.entity"},
         mapper = {"com.example.simple.mapper"}
 )
 public class KyraSimpleConfig {
@@ -384,8 +384,8 @@ public interface UpdateMapper<T> {
 
 @MapperCapability(UpdateMapper.class)
 public class UpdateMapperImpl<T> extends AbstractMapper<T> implements UpdateMapper<T> {
-    public UpdateMapperImpl(SqlSession sqlSession, Class<?> entityClass) {
-        super(sqlSession, entityClass);
+    public UpdateMapperImpl(SqlSession sqlSession, Class<?> type) {
+        super(sqlSession, type);
     }
 
     @Override
@@ -402,7 +402,7 @@ Supported capability constructors:
 
 - `(SqlSession)`
 - `(SqlSession, Class<?>)`
-- `(SqlSession, EntityTable<?>)`
+- `(SqlSession, Table<?>)`
 
 ## SQL Dialect SPI
 
@@ -490,8 +490,8 @@ Notes:
 
 - `Sql.query()` — start from an empty query; good for complex DSL composition
 - `Sql.from(table)` — defaults to `selectAll().from(table)`; quick single-table queries
-- `Sql.select(table, conditions...)` — single-row semantics; internally calls `.one(table.entityType())`
-- `Sql.selectList(table, conditions...)` — list semantics; internally calls `.list(table.entityType())`
+- `Sql.select(table, conditions...)` — single-row semantics; internally calls `.one(table.type())`
+- `Sql.selectList(table, conditions...)` — list semantics; internally calls `.list(table.type())`
 
 Static CRUD is also available:
 
@@ -625,7 +625,7 @@ When a `DataSource` is present, `kyra-quarkus` automatically provides:
 - `@KyraScan` generates tables/Reflectors and installs them via registry on demand
 
 REST DTOs must have a generated Reflector. Add `@Reflect` to standalone DTOs; entities in an
-`@KyraScan(entity = {...})` package are already covered. The provider preserves generic endpoint
+`@KyraScan(tables = {...})` package are already covered. The provider preserves generic endpoint
 types and uses the byte-oriented `JsonMapper` APIs without an intermediate `String`.
 
 The default mapper is a Quarkus `@DefaultBean`, so an application can replace it with a custom CDI
@@ -648,7 +648,7 @@ Same as Spring Boot: describe entity and mapper packages with `@KyraScan`:
 
 ```java
 @KyraScan(
-        entity = {"com.example.quarkus.entity"},
+        tables = {"com.example.quarkus.entity"},
         mapper = {"com.example.quarkus.mapper"}
 )
 public class KyraQuarkusConfig {

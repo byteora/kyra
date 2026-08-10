@@ -21,7 +21,7 @@ public final class QueryWrapper {
     private final WhereWrapper whereWrapper = new WhereWrapper();
     private final SqlExecutor sqlExecutor;
     private Condition having;
-    private EntityTable<?> from;
+    private Table<?> from;
     private boolean selectAll;
 
     public QueryWrapper() {
@@ -42,44 +42,44 @@ public final class QueryWrapper {
         return this;
     }
 
-    public QueryWrapper from(EntityTable<?> table) {
+    public QueryWrapper from(Table<?> table) {
         this.from = Objects.requireNonNull(table, "table");
         return this;
     }
 
-    public JoinStep leftJoin(EntityTable<?> table) {
+    public JoinStep leftJoin(Table<?> table) {
         return new JoinStep(this, "LEFT JOIN", table);
     }
 
-    public QueryWrapper leftJoin(EntityTable<?> table, Condition on) {
+    public QueryWrapper leftJoin(Table<?> table, Condition on) {
         return leftJoin(table).on(on);
     }
 
-    public QueryWrapper leftJoin(EntityTable<?> table, Consumer<PredicateBuilder> on) {
+    public QueryWrapper leftJoin(Table<?> table, Consumer<PredicateBuilder> on) {
         return leftJoin(table).on(on);
     }
 
-    public JoinStep innerJoin(EntityTable<?> table) {
+    public JoinStep innerJoin(Table<?> table) {
         return new JoinStep(this, "INNER JOIN", table);
     }
 
-    public QueryWrapper innerJoin(EntityTable<?> table, Condition on) {
+    public QueryWrapper innerJoin(Table<?> table, Condition on) {
         return innerJoin(table).on(on);
     }
 
-    public QueryWrapper innerJoin(EntityTable<?> table, Consumer<PredicateBuilder> on) {
+    public QueryWrapper innerJoin(Table<?> table, Consumer<PredicateBuilder> on) {
         return innerJoin(table).on(on);
     }
 
-    public JoinStep rightJoin(EntityTable<?> table) {
+    public JoinStep rightJoin(Table<?> table) {
         return new JoinStep(this, "RIGHT JOIN", table);
     }
 
-    public QueryWrapper rightJoin(EntityTable<?> table, Condition on) {
+    public QueryWrapper rightJoin(Table<?> table, Condition on) {
         return rightJoin(table).on(on);
     }
 
-    public QueryWrapper rightJoin(EntityTable<?> table, Consumer<PredicateBuilder> on) {
+    public QueryWrapper rightJoin(Table<?> table, Consumer<PredicateBuilder> on) {
         return rightJoin(table).on(on);
     }
 
@@ -274,16 +274,16 @@ public final class QueryWrapper {
         throw new SqlExecutorException("QueryWrapper is not bound to a SqlExecutor. Use new QueryWrapper(sqlExecutor), new QueryWrapper(provider), or Wrapper.query(sqlExecutor).");
     }
 
-    private void addJoin(String joinType, EntityTable<?> table, Condition on) {
+    private void addJoin(String joinType, Table<?> table, Condition on) {
         joins.add(new JoinSpec(joinType, table, on));
     }
 
     public static final class JoinStep {
         private final QueryWrapper owner;
         private final String joinType;
-        private final EntityTable<?> table;
+        private final Table<?> table;
 
-        private JoinStep(QueryWrapper owner, String joinType, EntityTable<?> table) {
+        private JoinStep(QueryWrapper owner, String joinType, Table<?> table) {
             this.owner = owner;
             this.joinType = joinType;
             this.table = table;
@@ -301,7 +301,7 @@ public final class QueryWrapper {
         }
     }
 
-    private record JoinSpec(String joinType, EntityTable<?> table, Condition on) {
+    private record JoinSpec(String joinType, Table<?> table, Condition on) {
     }
 
 }

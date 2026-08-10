@@ -91,7 +91,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
     private boolean debugEnabled;
     private long debugStartNanos;
     private long debugStartMillis;
-    private long entityElapsedNanos;
+    private long tableElapsedNanos;
     private long mapperElapsedNanos;
     private int debugRound;
     private boolean mapperOptionWarningPrinted;
@@ -114,7 +114,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
     private final Set<String> generatedMeta = new HashSet<>();
     private final Set<String> generatedMappers = new HashSet<>();
     private final Map<String, Boolean> mapperCapabilityPresenceCache = new LinkedHashMap<>();
-    private final Map<String, List<TypeElement>> mapperCapabilityEntityTypesCache = new LinkedHashMap<>();
+    private final Map<String, List<TypeElement>> mapperCapabilityTypesCache = new LinkedHashMap<>();
     private final Set<String> expandedAutoReflectTypes = new HashSet<>();
     private final Map<String, List<VariableElement>> instanceFieldsCache = new LinkedHashMap<>();
     private static final DateTimeFormatter DEBUG_TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
@@ -149,23 +149,23 @@ public class KyraOrmProcessor extends AbstractProcessor {
             }
 
             @Override
-            public ReflectSpec reflectSpec(TypeElement entityType) {
-                return reflectSpecs.get(entityType.getQualifiedName().toString());
+            public ReflectSpec reflectSpec(TypeElement type) {
+                return reflectSpecs.get(type.getQualifiedName().toString());
             }
 
             @Override
-            public List<VariableElement> collectInstanceFields(TypeElement entityType) {
-                return KyraOrmProcessor.this.collectInstanceFields(entityType);
+            public List<VariableElement> collectInstanceFields(TypeElement type) {
+                return KyraOrmProcessor.this.collectInstanceFields(type);
             }
 
             @Override
-            public List<ExecutableElement> collectInvokableMethods(TypeElement entityType) {
-                return KyraOrmProcessor.this.collectInvokableMethods(entityType);
+            public List<ExecutableElement> collectInvokableMethods(TypeElement type) {
+                return KyraOrmProcessor.this.collectInvokableMethods(type);
             }
 
             @Override
-            public List<String> expandedFieldNames(TypeElement entityType) {
-                return KyraOrmProcessor.this.expandedFieldNames(entityType);
+            public List<String> expandedFieldNames(TypeElement type) {
+                return KyraOrmProcessor.this.expandedFieldNames(type);
             }
 
             @Override
@@ -174,8 +174,8 @@ public class KyraOrmProcessor extends AbstractProcessor {
             }
 
             @Override
-            public TypeElement directSuperType(TypeElement entityType) {
-                return KyraOrmProcessor.this.directSuperType(entityType);
+            public TypeElement directSuperType(TypeElement type) {
+                return KyraOrmProcessor.this.directSuperType(type);
             }
 
             @Override
@@ -244,7 +244,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
         loadPersistedScanSpecsIfNeeded();
         loadPersistedSupportIndexIfNeeded();
         mapperCapabilityPresenceCache.clear();
-        mapperCapabilityEntityTypesCache.clear();
+        mapperCapabilityTypesCache.clear();
         collectReflectSpecs(roundEnv);
         long mapperStart = System.nanoTime();
         collectMapperCapabilitySpecs(roundEnv);
@@ -252,7 +252,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
             scanSpecIndexDirty = true;
         }
         collectMapperReflectSpecs(roundEnv);
-        registerScannedEntityReflectSpecs();
+        registerScannedTableReflectSpecs();
         registerBuiltinReflectSpecs();
         generateReflectors();
         if (!roundEnv.processingOver() && !reflectorInstallerGenerated) {
@@ -260,12 +260,12 @@ public class KyraOrmProcessor extends AbstractProcessor {
         }
         mapperElapsedNanos += System.nanoTime() - mapperStart;
 
-        long entityStart = System.nanoTime();
+        long tableStart = System.nanoTime();
         generateMeta();
         if (!roundEnv.processingOver() && !tableInstallerGenerated) {
             generateTableInstallerAndService();
         }
-        entityElapsedNanos += System.nanoTime() - entityStart;
+        tableElapsedNanos += System.nanoTime() - tableStart;
 
         if (!roundEnv.processingOver() && !scanSpecs.isEmpty()) {
             mapperStart = System.nanoTime();
@@ -352,7 +352,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
             TypeElement configType = (TypeElement) element;
             warnIfMapperOptionMissing(configType);
             KyraScan scan = configType.getAnnotation(KyraScan.class);
-            changed |= upsertScanSpec(new ScanSpec(configType, mapperXmlRoots, List.of(scan.entity()), List.of(scan.mapper())));
+            changed |= upsertScanSpec(new ScanSpec(configType, mapperXmlRoots, List.of(scan.tables()), List.of(scan.mapper())));
         }
         for (Element rootElement : roundEnv.getRootElements()) {
             changed |= collectScanTypes(rootElement);
@@ -363,7 +363,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
         // source files or in dependency jars.
         LinkedHashSet<String> packages = new LinkedHashSet<>();
         for (ScanSpec scanSpec : scanSpecs) {
-            packages.addAll(scanSpec.entityPackages);
+            packages.addAll(scanSpec.tablePackages);
             packages.addAll(scanSpec.mapperPackages);
         }
         for (String pkg : packages) {
@@ -410,63 +410,63 @@ public class KyraOrmProcessor extends AbstractProcessor {
             }
         }
         for (GeneratedSupportIndexStore.ReflectRegistration registration : generatedSupportIndexStore.reflectors()) {
-            TypeElement entityType = elements.getTypeElement(registration.entityTypeName());
-            if (entityType == null || !generatedReflectors.add(registration.entityTypeName())) {
-                debug("skip persisted reflector regeneration for " + registration.entityTypeName()
-                        + ", entityFound=" + (entityType != null)
-                        + ", alreadyGenerated=" + generatedReflectors.contains(registration.entityTypeName()));
+            TypeElement type = elements.getTypeElement(registration.typeName());
+            if (type == null || !generatedReflectors.add(registration.typeName())) {
+                debug("skip persisted reflector regeneration for " + registration.typeName()
+                        + ", typeFound=" + (type != null)
+                        + ", alreadyGenerated=" + generatedReflectors.contains(registration.typeName()));
                 continue;
             }
             try {
-                writeReflectorClassByName(entityType, registration.reflectorTypeName());
+                writeReflectorClassByName(type, registration.reflectorTypeName());
             } catch (IOException ex) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "Failed to regenerate reflector: " + ex.getMessage(), entityType);
+                messager.printMessage(Diagnostic.Kind.ERROR, "Failed to regenerate reflector: " + ex.getMessage(), type);
             }
         }
     }
 
     /**
-     * Scanned entities always get a {@code xxxTable} meta class via {@link #generateMeta()}, but a
+     * Scanned types always get a {@code xxxTable} meta class via {@link #generateMeta()}, but a
      * reflector is only produced for types present in {@link #reflectSpecs}. Mapper collection adds
-     * reflect specs for entities reachable from a mapper; an entity in a scanned {@code entity}
+     * reflect specs for types reachable from a mapper; a type in a scanned {@code tables}
      * package with no mapper would otherwise get a table but no reflector. Register every scanned
-     * entity as a reflect type here so its reflector is generated regardless of mapper presence.
+     * type as a reflect type here so its reflector is generated regardless of mapper presence.
      */
-    private void registerScannedEntityReflectSpecs() {
+    private void registerScannedTableReflectSpecs() {
         for (ScanSpec scanSpec : scanSpecs) {
-            for (String entityTypeName : scanSpec.entityTypeNames) {
-                TypeElement entityType = elements.getTypeElement(entityTypeName);
-                if (entityType == null || !shouldCollectScannedType(entityType) || !isReflectTarget(entityType)) {
+            for (String typeName : scanSpec.typeNames) {
+                TypeElement type = elements.getTypeElement(typeName);
+                if (type == null || !shouldCollectScannedType(type) || !isReflectTarget(type)) {
                     continue;
                 }
-                registerReflectType(entityType, new HashSet<>());
+                registerReflectType(type, new HashSet<>());
             }
         }
     }
 
     private void generateMeta() {
         for (ScanSpec scanSpec : scanSpecs) {
-            for (String entityTypeName : scanSpec.entityTypeNames) {
-                TypeElement entityType = elements.getTypeElement(entityTypeName);
-                if (entityType == null || !shouldCollectScannedType(entityType) || !generatedMeta.add(entityTypeName)) {
+            for (String typeName : scanSpec.typeNames) {
+                TypeElement type = elements.getTypeElement(typeName);
+                if (type == null || !shouldCollectScannedType(type) || !generatedMeta.add(typeName)) {
                     continue;
                 }
                 try {
-                    writeMetaClass(entityType);
+                    writeMetaClass(type);
                 } catch (IOException ex) {
-                    messager.printMessage(Diagnostic.Kind.ERROR, "Failed to generate meta class: " + ex.getMessage(), entityType);
+                    messager.printMessage(Diagnostic.Kind.ERROR, "Failed to generate meta class: " + ex.getMessage(), type);
                 }
             }
         }
         for (GeneratedSupportIndexStore.TableRegistration registration : generatedSupportIndexStore.tables()) {
-            TypeElement entityType = elements.getTypeElement(registration.entityTypeName());
-            if (entityType == null || !shouldCollectScannedType(entityType) || !generatedMeta.add(registration.entityTypeName())) {
+            TypeElement type = elements.getTypeElement(registration.typeName());
+            if (type == null || !shouldCollectScannedType(type) || !generatedMeta.add(registration.typeName())) {
                 continue;
             }
             try {
-                writeMetaClass(entityType);
+                writeMetaClass(type);
             } catch (IOException ex) {
-                messager.printMessage(Diagnostic.Kind.ERROR, "Failed to regenerate meta class: " + ex.getMessage(), entityType);
+                messager.printMessage(Diagnostic.Kind.ERROR, "Failed to regenerate meta class: " + ex.getMessage(), type);
             }
         }
     }
@@ -500,8 +500,8 @@ public class KyraOrmProcessor extends AbstractProcessor {
     }
 
     private void registerMapperCapabilityReflectSpecs(TypeElement mapperType) {
-        for (TypeElement entityType : mapperCapabilityEntityTypes(mapperType)) {
-            registerReflectType(entityType, new HashSet<>());
+        for (TypeElement type : mapperCapabilityTypes(mapperType)) {
+            registerReflectType(type, new HashSet<>());
         }
     }
 
@@ -529,8 +529,8 @@ public class KyraOrmProcessor extends AbstractProcessor {
             if (typeElement.getKind() == ElementKind.INTERFACE && matchesPackage(typeElement, scanSpec.mapperPackages)) {
                 changed |= scanSpec.mapperTypeNames.add(qualifiedName);
             }
-            if (typeElement.getKind().isClass() && matchesPackage(typeElement, scanSpec.entityPackages)) {
-                changed |= scanSpec.entityTypeNames.add(qualifiedName);
+            if (typeElement.getKind().isClass() && matchesPackage(typeElement, scanSpec.tablePackages)) {
+                changed |= scanSpec.typeNames.add(qualifiedName);
             }
         }
         return changed;
@@ -542,9 +542,9 @@ public class KyraOrmProcessor extends AbstractProcessor {
                 && !hasAnnotation(typeElement, "lombok.Generated");
     }
 
-    private boolean shouldRetainPersistedEntityTypeName(String entityTypeName) {
-        TypeElement entityType = elements.getTypeElement(entityTypeName);
-        return entityType == null || shouldCollectScannedType(entityType);
+    private boolean shouldRetainPersistedTypeName(String typeName) {
+        TypeElement type = elements.getTypeElement(typeName);
+        return type == null || shouldCollectScannedType(type);
     }
 
     private boolean shouldRetainPersistedMapperTypeName(String mapperTypeName) {
@@ -640,7 +640,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
         int limit = 30;
         List<String> values = registrations.stream()
                 .limit(limit)
-                .map(registration -> registration.entityTypeName() + " -> " + registration.reflectorTypeName())
+                .map(registration -> registration.typeName() + " -> " + registration.reflectorTypeName())
                 .toList();
         if (registrations.size() <= limit) {
             return values;
@@ -656,7 +656,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
         String message = "kyra.debug start=" + formatClockTime(debugStartMillis)
                 + ", end=" + formatClockTime(endMillis)
                 + ", total=" + formatElapsed(totalElapsedNanos)
-                + ", entity=" + formatElapsed(entityElapsedNanos)
+                + ", table=" + formatElapsed(tableElapsedNanos)
                 + ", mapper=" + formatElapsed(mapperElapsedNanos);
         messager.printMessage(Diagnostic.Kind.NOTE, message);
     }
@@ -688,12 +688,12 @@ public class KyraOrmProcessor extends AbstractProcessor {
         );
     }
 
-    private void writeMetaClass(TypeElement entityType) throws IOException {
-        String packageName = generatedModelPackageName(entityType);
-        String generatedSimpleName = tableSimpleName(entityType);
+    private void writeMetaClass(TypeElement type) throws IOException {
+        String packageName = generatedModelPackageName(type);
+        String generatedSimpleName = tableSimpleName(type);
         String qualifiedName = packageName.isEmpty() ? generatedSimpleName : packageName + "." + generatedSimpleName;
-        writeSourceFile(qualifiedName, entityType, buildMetaSource(packageName, generatedSimpleName, entityType));
-        generatedSupportIndexStore.upsertTable(entityType.getQualifiedName().toString(), qualifiedName);
+        writeSourceFile(qualifiedName, type, buildMetaSource(packageName, generatedSimpleName, type));
+        generatedSupportIndexStore.upsertTable(type.getQualifiedName().toString(), qualifiedName);
     }
 
     private void generateTableInstallerAndService() {
@@ -705,7 +705,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
         debug("generate table installer " + installerTypeName
                 + ", registrations=" + generatedSupportIndexStore.tables().size()
                 + ", serviceOrigins=" + scanSpecs.stream().map(scanSpec -> scanSpec.configQualifiedName).toList()
-                + ", tables=" + generatedSupportIndexStore.tables().stream().map(GeneratedSupportIndexStore.TableRegistration::entityTypeName).toList());
+                + ", tables=" + generatedSupportIndexStore.tables().stream().map(GeneratedSupportIndexStore.TableRegistration::typeName).toList());
         try {
             writeClassFile(installerTypeName,
                     scanSpecs.stream().map(ScanSpec::configType).filter(element -> element != null).findFirst().orElse(null),
@@ -774,7 +774,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
         String moduleName = moduleNameOption;
         if (moduleName == null) {
             moduleName = generatedSupportIndexStore.reflectors().stream()
-                    .map(registration -> packageNameOf(registration.entityTypeName()))
+                    .map(registration -> packageNameOf(registration.typeName()))
                     .filter(packageName -> !packageName.isBlank())
                     .findFirst()
                     .orElse("kyra");
@@ -783,7 +783,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
     }
 
     private void emitReflectorRegistration(MethodVisitor mv, GeneratedSupportIndexStore.ReflectRegistration registration) {
-        pushClassLiteral(mv, registration.entityTypeName());
+        pushClassLiteral(mv, registration.typeName());
         String reflectorInternalName = AsmUtils.internalName(registration.reflectorTypeName());
         mv.visitTypeInsn(Opcodes.NEW, reflectorInternalName);
         mv.visitInsn(Opcodes.DUP);
@@ -817,7 +817,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
         String moduleName = moduleNameOption;
         if (moduleName == null) {
             moduleName = generatedSupportIndexStore.tables().stream()
-                    .map(registration -> packageNameOf(registration.entityTypeName()))
+                    .map(registration -> packageNameOf(registration.typeName()))
                     .filter(packageName -> !packageName.isBlank())
                     .findFirst()
                     .orElse("kyra");
@@ -854,21 +854,21 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return result.toString();
     }
 
-    private void writeReflectorClass(TypeElement entityType, String suffix) throws IOException {
-        String qualifiedName = reflectorTypeName(entityType, suffix);
-        writeClassFile(qualifiedName, entityType, reflectorClassGenerator.buildReflectorClass(qualifiedName, entityType));
-        boolean changed = generatedSupportIndexStore.upsertReflector(entityType.getQualifiedName().toString(), qualifiedName);
+    private void writeReflectorClass(TypeElement type, String suffix) throws IOException {
+        String qualifiedName = reflectorTypeName(type, suffix);
+        writeClassFile(qualifiedName, type, reflectorClassGenerator.buildReflectorClass(qualifiedName, type));
+        boolean changed = generatedSupportIndexStore.upsertReflector(type.getQualifiedName().toString(), qualifiedName);
         debug("wrote reflector class " + qualifiedName
-                + " for " + entityType.getQualifiedName()
+                + " for " + type.getQualifiedName()
                 + ", indexChanged=" + changed
                 + ", indexDirty=" + generatedSupportIndexStore.isDirty());
     }
 
-    private void writeReflectorClassByName(TypeElement entityType, String qualifiedName) throws IOException {
-        writeClassFile(qualifiedName, entityType, reflectorClassGenerator.buildReflectorClass(qualifiedName, entityType));
-        boolean changed = generatedSupportIndexStore.upsertReflector(entityType.getQualifiedName().toString(), qualifiedName);
+    private void writeReflectorClassByName(TypeElement type, String qualifiedName) throws IOException {
+        writeClassFile(qualifiedName, type, reflectorClassGenerator.buildReflectorClass(qualifiedName, type));
+        boolean changed = generatedSupportIndexStore.upsertReflector(type.getQualifiedName().toString(), qualifiedName);
         debug("rewrote persisted reflector class " + qualifiedName
-                + " for " + entityType.getQualifiedName()
+                + " for " + type.getQualifiedName()
                 + ", indexChanged=" + changed
                 + ", indexDirty=" + generatedSupportIndexStore.isDirty());
     }
@@ -906,22 +906,22 @@ public class KyraOrmProcessor extends AbstractProcessor {
         }
     }
 
-    private String buildMetaSource(String packageName, String generatedSimpleName, TypeElement entityType) {
-        String entityTypeName = entityType.getQualifiedName().toString();
-        String tableName = resolveTableName(entityType);
+    private String buildMetaSource(String packageName, String generatedSimpleName, TypeElement type) {
+        String typeName = type.getQualifiedName().toString();
+        String tableName = resolveTableName(type);
         String tableConstantName = "TABLE";
-        List<VariableElement> tableFields = collectTableFields(entityType);
-        VariableElement idField = resolveIdField(entityType, tableFields);
-        IdGenerationSpec idGeneration = resolveIdGeneration(entityType, idField);
+        List<VariableElement> tableFields = collectTableFields(type);
+        VariableElement idField = resolveIdField(type, tableFields);
+        IdGenerationSpec idGeneration = resolveIdGeneration(type, idField);
 
         StringBuilder source = new StringBuilder();
         if (!packageName.isEmpty()) {
             source.append("package ").append(packageName).append(";\n\n");
         }
         source.append("import org.byteora.kyra.orm.query.Column;\n");
-        source.append("import org.byteora.kyra.orm.query.EntityTable;\n\n");
+        source.append("import org.byteora.kyra.orm.query.Table;\n\n");
         source.append("public final class ").append(generatedSimpleName)
-                .append(" extends EntityTable<").append(entityTypeName).append("> {\n");
+                .append(" extends Table<").append(typeName).append("> {\n");
         source.append("    public static final ").append(generatedSimpleName).append(' ')
                 .append(tableConstantName).append(" = new ").append(generatedSimpleName)
                 .append("(\"").append(escapeJava(tableName)).append("\", null);\n\n");
@@ -939,14 +939,14 @@ public class KyraOrmProcessor extends AbstractProcessor {
         for (VariableElement field : tableFields) {
             String fieldName = field.getSimpleName().toString();
             String fieldType = renderRuntimeCastType(field.asType());
-            source.append("    public final Column<").append(entityTypeName).append(", ")
+            source.append("    public final Column<").append(typeName).append(", ")
                     .append(fieldType).append("> ")
                     .append(fieldName).append(" = column(\"")
                     .append(escapeJava(resolveColumnName(field))).append("\", ")
                     .append(fieldType).append(".class);\n");
         }
         source.append("\n    @Override\n");
-        source.append("    public Column<").append(entityTypeName).append(", ?> idColumn() {\n");
+        source.append("    public Column<").append(typeName).append(", ?> idColumn() {\n");
         if (idField != null) {
             source.append("        return ").append(idField.getSimpleName()).append(";\n");
         } else {
@@ -982,18 +982,18 @@ public class KyraOrmProcessor extends AbstractProcessor {
         source.append("        };\n");
         source.append("    }\n");
         source.append("\n    private ").append(generatedSimpleName).append("(String tableName, String alias) {\n");
-        source.append("        super(").append(entityTypeName).append(".class, tableName, alias);\n");
+        source.append("        super(").append(typeName).append(".class, tableName, alias);\n");
         source.append("    }\n");
         source.append("}\n");
         return source.toString();
     }
 
-    private List<String> expandedFieldNames(TypeElement entityType) {
+    private List<String> expandedFieldNames(TypeElement type) {
         LinkedHashSet<String> names = new LinkedHashSet<>();
-        for (VariableElement field : collectInstanceFields(entityType)) {
+        for (VariableElement field : collectInstanceFields(type)) {
             names.add(field.getSimpleName().toString());
         }
-        TypeElement superType = directSuperType(entityType);
+        TypeElement superType = directSuperType(type);
         if (superType != null && !isJavaLangObject(superType) && reflectSpecs.containsKey(superType.getQualifiedName().toString())) {
             names.addAll(expandedFieldNames(superType));
         }
@@ -1013,13 +1013,13 @@ public class KyraOrmProcessor extends AbstractProcessor {
     }
 
     private void emitTableRegistration(MethodVisitor mv, GeneratedSupportIndexStore.TableRegistration registration) {
-        pushClassLiteral(mv, registration.entityTypeName());
+        pushClassLiteral(mv, registration.typeName());
         String tableInternalName = AsmUtils.internalName(registration.tableTypeName());
         mv.visitFieldInsn(Opcodes.GETSTATIC, tableInternalName, "TABLE", "L" + tableInternalName + ";");
         mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                 "org/byteora/kyra/orm/query/Tables",
                 "register",
-                "(Ljava/lang/Class;Lorg/byteora/kyra/orm/query/EntityTable;)V",
+                "(Ljava/lang/Class;Lorg/byteora/kyra/orm/query/Table;)V",
                 false);
     }
 
@@ -1314,7 +1314,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
                 }
                 if (!methods.isEmpty()) {
                     String fieldName = uniqueCapabilityFieldName(interfaceElement.getSimpleName().toString(), usedFieldNames);
-                    TypeElement capabilityEntityType = capabilityEntityTypeElement(interfaceType);
+                    TypeElement capabilityType = capabilityTypeElement(interfaceType);
                     delegates.add(new MapperCapabilityDelegateSpec(
                             fieldName,
                             interfaceType.toString(),
@@ -1322,8 +1322,8 @@ public class KyraOrmProcessor extends AbstractProcessor {
                             renderCapabilityInstantiation(capabilitySpec.implType(), interfaceType),
                             capabilitySpec.implType().getQualifiedName().toString(),
                             capabilityConstructorMode(capabilitySpec.implType()),
-                            capabilityEntityType == null ? null : capabilityEntityType.getQualifiedName().toString(),
-                            capabilityEntityType == null ? null : tableConstantReference(capabilityEntityType).substring(0, tableConstantReference(capabilityEntityType).lastIndexOf('.')),
+                            capabilityType == null ? null : capabilityType.getQualifiedName().toString(),
+                            capabilityType == null ? null : tableConstantReference(capabilityType).substring(0, tableConstantReference(capabilityType).lastIndexOf('.')),
                             methods
                     ));
                 }
@@ -1388,20 +1388,20 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return false;
     }
 
-    private List<TypeElement> mapperCapabilityEntityTypes(TypeElement mapperType) {
+    private List<TypeElement> mapperCapabilityTypes(TypeElement mapperType) {
         String qualifiedName = mapperType.getQualifiedName().toString();
-        List<TypeElement> cached = mapperCapabilityEntityTypesCache.get(qualifiedName);
+        List<TypeElement> cached = mapperCapabilityTypesCache.get(qualifiedName);
         if (cached != null) {
             return cached;
         }
-        Map<String, TypeElement> entityTypes = new LinkedHashMap<>();
-        collectMapperEntityTypes(mapperType.asType(), entityTypes, new HashSet<>());
-        List<TypeElement> result = new ArrayList<>(entityTypes.values());
-        mapperCapabilityEntityTypesCache.put(qualifiedName, result);
+        Map<String, TypeElement> capabilityTypes = new LinkedHashMap<>();
+        collectMapperTypes(mapperType.asType(), capabilityTypes, new HashSet<>());
+        List<TypeElement> result = new ArrayList<>(capabilityTypes.values());
+        mapperCapabilityTypesCache.put(qualifiedName, result);
         return result;
     }
 
-    private void collectMapperEntityTypes(TypeMirror typeMirror, Map<String, TypeElement> entityTypes, Set<String> visiting) {
+    private void collectMapperTypes(TypeMirror typeMirror, Map<String, TypeElement> capabilityTypes, Set<String> visiting) {
         if (!(typeMirror instanceof DeclaredType declaredType)) {
             return;
         }
@@ -1418,12 +1418,12 @@ public class KyraOrmProcessor extends AbstractProcessor {
                 continue;
             }
             if (mapperCapabilitySpecs.containsKey(interfaceElement.getQualifiedName().toString())) {
-                TypeElement entityTypeElement = capabilityEntityTypeElement(interfaceType);
-                if (entityTypeElement != null) {
-                    entityTypes.putIfAbsent(entityTypeElement.getQualifiedName().toString(), entityTypeElement);
+                TypeElement typeElement = capabilityTypeElement(interfaceType);
+                if (typeElement != null) {
+                    capabilityTypes.putIfAbsent(typeElement.getQualifiedName().toString(), typeElement);
                 }
             }
-            collectMapperEntityTypes(interfaceType, entityTypes, visiting);
+            collectMapperTypes(interfaceType, capabilityTypes, visiting);
         }
         if (currentType != null) {
             visiting.remove(currentType.getQualifiedName().toString());
@@ -1449,13 +1449,13 @@ public class KyraOrmProcessor extends AbstractProcessor {
         if (constructorMode == CapabilityConstructorMode.SQL_EXECUTOR) {
             return "new " + implTypeName + "(sqlExecutor)";
         }
-        TypeElement entityTypeElement = capabilityEntityTypeElement(interfaceType);
-        if (constructorMode == CapabilityConstructorMode.SQL_EXECUTOR_AND_ENTITY_CLASS) {
-            String entityClassLiteral = entityTypeElement == null ? "null" : entityTypeElement.getQualifiedName() + ".class";
-            return "new " + implTypeName + "(sqlExecutor, " + entityClassLiteral + ")";
+        TypeElement typeElement = capabilityTypeElement(interfaceType);
+        if (constructorMode == CapabilityConstructorMode.SQL_EXECUTOR_AND_TYPE_CLASS) {
+            String typeClassLiteral = typeElement == null ? "null" : typeElement.getQualifiedName() + ".class";
+            return "new " + implTypeName + "(sqlExecutor, " + typeClassLiteral + ")";
         }
-        String entityTableLiteral = entityTypeElement == null ? "null" : tableConstantReference(entityTypeElement);
-        return "new " + implTypeName + "(sqlExecutor, " + entityTableLiteral + ")";
+        String tableLiteral = typeElement == null ? "null" : tableConstantReference(typeElement);
+        return "new " + implTypeName + "(sqlExecutor, " + tableLiteral + ")";
     }
 
     private CapabilityConstructorMode capabilityConstructorMode(TypeElement implType) {
@@ -1471,30 +1471,30 @@ public class KyraOrmProcessor extends AbstractProcessor {
             if (parameters.size() == 2
                     && parameters.getFirst().asType().toString().equals(SQL_EXECUTOR)
                     && types.erasure(parameters.get(1).asType()).toString().equals("java.lang.Class")) {
-                return CapabilityConstructorMode.SQL_EXECUTOR_AND_ENTITY_CLASS;
+                return CapabilityConstructorMode.SQL_EXECUTOR_AND_TYPE_CLASS;
             }
             if (parameters.size() == 2
                     && parameters.getFirst().asType().toString().equals(SQL_EXECUTOR)
-                    && types.erasure(parameters.get(1).asType()).toString().equals("org.byteora.kyra.orm.query.EntityTable")) {
-                return CapabilityConstructorMode.SQL_EXECUTOR_AND_ENTITY_TABLE;
+                    && types.erasure(parameters.get(1).asType()).toString().equals("org.byteora.kyra.orm.query.Table")) {
+                return CapabilityConstructorMode.SQL_EXECUTOR_AND_TABLE;
             }
         }
-        throw new ProcessorException("Mapper capability impl must declare constructor (SqlExecutor), (SqlExecutor, Class<?>) or (SqlExecutor, EntityTable<?>): " + implType.getQualifiedName());
+        throw new ProcessorException("Mapper capability impl must declare constructor (SqlExecutor), (SqlExecutor, Class<?>) or (SqlExecutor, Table<?>): " + implType.getQualifiedName());
     }
 
-    private TypeElement capabilityEntityTypeElement(DeclaredType interfaceType) {
+    private TypeElement capabilityTypeElement(DeclaredType interfaceType) {
         if (interfaceType.getTypeArguments().isEmpty()) {
             return null;
         }
-        TypeMirror entityType = interfaceType.getTypeArguments().getFirst();
-        if (entityType.getKind() == TypeKind.TYPEVAR || entityType.getKind() == TypeKind.WILDCARD) {
+        TypeMirror type = interfaceType.getTypeArguments().getFirst();
+        if (type.getKind() == TypeKind.TYPEVAR || type.getKind() == TypeKind.WILDCARD) {
             return null;
         }
-        return asTypeElement(entityType);
+        return asTypeElement(type);
     }
 
-    private String tableConstantReference(TypeElement entityType) {
-        return generatedModelPackageName(entityType) + "." + tableSimpleName(entityType) + ".TABLE";
+    private String tableConstantReference(TypeElement type) {
+        return generatedModelPackageName(type) + "." + tableSimpleName(type) + ".TABLE";
     }
 
     private TypeElement mapperCapabilityContractType(TypeElement implType) {
@@ -1534,14 +1534,14 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return candidate;
     }
 
-    private List<VariableElement> collectInstanceFields(TypeElement entityType) {
-        String qualifiedName = entityType.getQualifiedName().toString();
+    private List<VariableElement> collectInstanceFields(TypeElement type) {
+        String qualifiedName = type.getQualifiedName().toString();
         List<VariableElement> cached = instanceFieldsCache.get(qualifiedName);
         if (cached != null) {
             return cached;
         }
         List<VariableElement> fields = new ArrayList<>();
-        for (Element enclosedElement : entityType.getEnclosedElements()) {
+        for (Element enclosedElement : type.getEnclosedElements()) {
             if (enclosedElement.getKind() == ElementKind.FIELD && !enclosedElement.getModifiers().contains(Modifier.STATIC)) {
                 VariableElement field = (VariableElement) enclosedElement;
                 if (!isIgnoredGeneratedField(field)) {
@@ -1554,18 +1554,18 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return result;
     }
 
-    private List<VariableElement> collectTableFields(TypeElement entityType) {
+    private List<VariableElement> collectTableFields(TypeElement type) {
         Map<String, VariableElement> fields = new LinkedHashMap<>();
-        collectTableFields(entityType, fields);
+        collectTableFields(type, fields);
         return new ArrayList<>(fields.values());
     }
 
-    private VariableElement resolveIdField(TypeElement entityType, List<VariableElement> fields) {
+    private VariableElement resolveIdField(TypeElement type, List<VariableElement> fields) {
         List<VariableElement> annotatedFields = fields.stream()
                 .filter(field -> hasAnnotation(field, ID_ANNOTATION))
                 .toList();
         if (annotatedFields.size() > 1) {
-            throw new ProcessorException("Multiple @ID fields found on entity: " + entityType.getQualifiedName());
+            throw new ProcessorException("Multiple @ID fields found on entity: " + type.getQualifiedName());
         }
         if (!annotatedFields.isEmpty()) {
             return annotatedFields.getFirst();
@@ -1576,7 +1576,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
                 .orElse(null);
     }
 
-    private IdGenerationSpec resolveIdGeneration(TypeElement entityType, VariableElement idField) {
+    private IdGenerationSpec resolveIdGeneration(TypeElement type, VariableElement idField) {
         if (idField == null) {
             return new IdGenerationSpec("NONE", null);
         }
@@ -1588,23 +1588,23 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return switch (strategy) {
             case "NONE" -> new IdGenerationSpec("NONE", null);
             case "UUID" -> {
-                validateUuidIdType(entityType, idField);
+                validateUuidIdType(type, idField);
                 yield new IdGenerationSpec("UUID", null);
             }
-            case "CUSTOM" -> new IdGenerationSpec("CUSTOM", customIdGeneratorInstantiation(entityType, idField, idAnnotation));
-            default -> throw new ProcessorException("Unsupported @ID strategy " + strategy + " on entity: " + entityType.getQualifiedName());
+            case "CUSTOM" -> new IdGenerationSpec("CUSTOM", customIdGeneratorInstantiation(type, idField, idAnnotation));
+            default -> throw new ProcessorException("Unsupported @ID strategy " + strategy + " on entity: " + type.getQualifiedName());
         };
     }
 
-    private void validateUuidIdType(TypeElement entityType, VariableElement idField) {
+    private void validateUuidIdType(TypeElement type, VariableElement idField) {
         String typeName = renderRuntimeCastType(idField.asType());
         if (!typeName.equals(String.class.getCanonicalName()) && !typeName.equals("java.util.UUID")) {
             throw new ProcessorException("@ID(strategy = UUID) only supports String or UUID fields: "
-                    + entityType.getQualifiedName() + "." + idField.getSimpleName());
+                    + type.getQualifiedName() + "." + idField.getSimpleName());
         }
     }
 
-    private String customIdGeneratorInstantiation(TypeElement entityType, VariableElement idField, AnnotationMirror idAnnotation) {
+    private String customIdGeneratorInstantiation(TypeElement type, VariableElement idField, AnnotationMirror idAnnotation) {
         TypeMirror generatorType = annotationClassValue(idAnnotation, "generator");
         if (generatorType == null || generatorType.toString().equals(ID_GENERATOR_TYPE)) {
             return null;
@@ -1612,7 +1612,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
         TypeElement generatorElement = (TypeElement) types.asElement(generatorType);
         if (generatorElement == null) {
             throw new ProcessorException("Invalid id generator type on entity: "
-                    + entityType.getQualifiedName() + "." + idField.getSimpleName());
+                    + type.getQualifiedName() + "." + idField.getSimpleName());
         }
         TypeElement idGeneratorType = elements.getTypeElement(ID_GENERATOR_TYPE);
         if (idGeneratorType == null || !types.isAssignable(types.erasure(generatorType), types.erasure(idGeneratorType.asType()))) {
@@ -1633,12 +1633,12 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return "new " + generatorType + "()";
     }
 
-    private void collectTableFields(TypeElement entityType, Map<String, VariableElement> fields) {
-        TypeElement superType = directSuperType(entityType);
+    private void collectTableFields(TypeElement type, Map<String, VariableElement> fields) {
+        TypeElement superType = directSuperType(type);
         if (superType != null && !isJavaLangObject(superType)) {
             collectTableFields(superType, fields);
         }
-        for (VariableElement field : collectInstanceFields(entityType)) {
+        for (VariableElement field : collectInstanceFields(type)) {
             fields.putIfAbsent(field.getSimpleName().toString(), field);
         }
     }
@@ -1648,9 +1648,9 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return pagingType != null && types.isAssignable(types.erasure(typeMirror), types.erasure(pagingType.asType()));
     }
 
-    private List<ExecutableElement> collectInvokableMethods(TypeElement entityType) {
+    private List<ExecutableElement> collectInvokableMethods(TypeElement type) {
         List<ExecutableElement> methods = new ArrayList<>();
-        for (Element enclosedElement : entityType.getEnclosedElements()) {
+        for (Element enclosedElement : type.getEnclosedElements()) {
             if (enclosedElement.getKind() == ElementKind.METHOD
                     && !enclosedElement.getModifiers().contains(Modifier.STATIC)
                     && enclosedElement.getModifiers().contains(Modifier.PUBLIC)) {
@@ -1748,8 +1748,8 @@ public class KyraOrmProcessor extends AbstractProcessor {
                 && parameters.getFirst().asType().toString().equals(Object.class.getCanonicalName());
     }
 
-    private TypeElement directSuperType(TypeElement entityType) {
-        TypeMirror superType = entityType.getSuperclass();
+    private TypeElement directSuperType(TypeElement type) {
+        TypeMirror superType = type.getSuperclass();
         return superType == null || superType.getKind() == TypeKind.NONE ? null : asTypeElement(superType);
     }
 
@@ -1862,8 +1862,8 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return GeneratedNames.packageName(packageNameOf(typeElement));
     }
 
-    private String reflectorTypeName(TypeElement entityType, String suffix) {
-        return generatedModelPackageName(entityType) + "." + reflectorSimpleName(entityType, suffix);
+    private String reflectorTypeName(TypeElement type, String suffix) {
+        return generatedModelPackageName(type) + "." + reflectorSimpleName(type, suffix);
     }
 
     private String mapperImplTypeName(TypeElement mapperType) {
@@ -1872,12 +1872,12 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return packageName.isEmpty() ? simpleName : packageName + "." + simpleName;
     }
 
-    private String reflectorSimpleName(TypeElement entityType, String suffix) {
-        return GeneratedNames.simpleName(enclosingSimpleNames(entityType), entityType.getSimpleName().toString(), suffix);
+    private String reflectorSimpleName(TypeElement type, String suffix) {
+        return GeneratedNames.simpleName(enclosingSimpleNames(type), type.getSimpleName().toString(), suffix);
     }
 
-    private String tableSimpleName(TypeElement entityType) {
-        return reflectorSimpleName(entityType, "Table");
+    private String tableSimpleName(TypeElement type) {
+        return reflectorSimpleName(type, "Table");
     }
 
     private List<String> enclosingSimpleNames(TypeElement typeElement) {
@@ -1890,12 +1890,12 @@ public class KyraOrmProcessor extends AbstractProcessor {
         return List.copyOf(names);
     }
 
-    private String resolveTableName(TypeElement entityType) {
-        String alias = aliasValue(entityType);
+    private String resolveTableName(TypeElement type) {
+        String alias = aliasValue(type);
         if (alias != null) {
             return alias;
         }
-        return toSnakeCase(entityType.getSimpleName().toString());
+        return toSnakeCase(type.getSimpleName().toString());
     }
 
     private String resolveColumnName(VariableElement field) {
@@ -1940,10 +1940,10 @@ public class KyraOrmProcessor extends AbstractProcessor {
         persistedScanSpecsLoaded = true;
         for (ScanSpecIndexStore.ScanConfigMetadata metadata : scanSpecIndexStore.read()) {
             TypeElement configType = elements.getTypeElement(metadata.configQualifiedName());
-            ScanSpec scanSpec = new ScanSpec(configType, metadata.configQualifiedName(), mapperXmlRoots, metadata.entityPackages(), metadata.mapperPackages());
-            for (String entityTypeName : metadata.entityTypeNames()) {
-                if (shouldRetainPersistedEntityTypeName(entityTypeName)) {
-                    scanSpec.entityTypeNames.add(entityTypeName);
+            ScanSpec scanSpec = new ScanSpec(configType, metadata.configQualifiedName(), mapperXmlRoots, metadata.tablePackages(), metadata.mapperPackages());
+            for (String typeName : metadata.typeNames()) {
+                if (shouldRetainPersistedTypeName(typeName)) {
+                    scanSpec.typeNames.add(typeName);
                 } else {
                     scanSpecIndexDirty = true;
                 }
@@ -1971,9 +1971,9 @@ public class KyraOrmProcessor extends AbstractProcessor {
         // as "invalid" would prune the entry and rewrite a smaller index,
         // permanently losing reflectors/tables and shrinking the installer.
         // Only prune entries we can positively prove are no longer collectable.
-        generatedSupportIndexStore.load((entityTypeName, generatedTypeName) -> {
-            TypeElement entityType = elements.getTypeElement(entityTypeName);
-            return entityType == null || shouldCollectScannedType(entityType);
+        generatedSupportIndexStore.load((typeName, generatedTypeName) -> {
+            TypeElement type = elements.getTypeElement(typeName);
+            return type == null || shouldCollectScannedType(type);
         });
         debug("loaded generated support index from=" + generatedSupportIndexStore.loadedLocation()
                 + ", reflectors=" + generatedSupportIndexStore.reflectors().size()
@@ -2020,15 +2020,15 @@ public class KyraOrmProcessor extends AbstractProcessor {
             }
         }
         for (GeneratedSupportIndexStore.ReflectRegistration reflector : generatedSupportIndexStore.reflectors()) {
-            TypeElement entityType = elements.getTypeElement(reflector.entityTypeName());
-            if (entityType != null) {
-                originating.add(entityType);
+            TypeElement type = elements.getTypeElement(reflector.typeName());
+            if (type != null) {
+                originating.add(type);
             }
         }
         for (GeneratedSupportIndexStore.TableRegistration table : generatedSupportIndexStore.tables()) {
-            TypeElement entityType = elements.getTypeElement(table.entityTypeName());
-            if (entityType != null) {
-                originating.add(entityType);
+            TypeElement type = elements.getTypeElement(table.typeName());
+            if (type != null) {
+                originating.add(type);
             }
         }
         return new ArrayList<>(originating);
@@ -2074,7 +2074,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
             String instantiation,
             String implTypeName,
             CapabilityConstructorMode constructorMode,
-            String entityTypeName,
+            String typeName,
             String tableTypeName,
             List<MapperCapabilityMethodSpec> methods
     ) {
@@ -2097,29 +2097,29 @@ public class KyraOrmProcessor extends AbstractProcessor {
 
     enum CapabilityConstructorMode {
         SQL_EXECUTOR,
-        SQL_EXECUTOR_AND_ENTITY_CLASS,
-        SQL_EXECUTOR_AND_ENTITY_TABLE
+        SQL_EXECUTOR_AND_TYPE_CLASS,
+        SQL_EXECUTOR_AND_TABLE
     }
 
     static final class ScanSpec {
         private final TypeElement configType;
         private final String configQualifiedName;
         private final List<String> xmlRoots;
-        private final List<String> entityPackages;
+        private final List<String> tablePackages;
         private final List<String> mapperPackages;
-        private final Set<String> entityTypeNames = new LinkedHashSet<>();
+        private final Set<String> typeNames = new LinkedHashSet<>();
         private final Set<String> mapperTypeNames = new LinkedHashSet<>();
         private Map<String, MapperXmlDefinition> xmlDefinitions;
 
-        private ScanSpec(TypeElement configType, List<String> xmlRoots, List<String> entityPackages, List<String> mapperPackages) {
-            this(configType, configType.getQualifiedName().toString(), xmlRoots, entityPackages, mapperPackages);
+        private ScanSpec(TypeElement configType, List<String> xmlRoots, List<String> tablePackages, List<String> mapperPackages) {
+            this(configType, configType.getQualifiedName().toString(), xmlRoots, tablePackages, mapperPackages);
         }
 
-        private ScanSpec(TypeElement configType, String configQualifiedName, List<String> xmlRoots, List<String> entityPackages, List<String> mapperPackages) {
+        private ScanSpec(TypeElement configType, String configQualifiedName, List<String> xmlRoots, List<String> tablePackages, List<String> mapperPackages) {
             this.configType = configType;
             this.configQualifiedName = configQualifiedName;
             this.xmlRoots = xmlRoots.stream().filter(value -> !value.isBlank()).map(String::trim).toList();
-            this.entityPackages = entityPackages.stream().filter(value -> !value.isBlank()).map(String::trim).toList();
+            this.tablePackages = tablePackages.stream().filter(value -> !value.isBlank()).map(String::trim).toList();
             this.mapperPackages = mapperPackages.stream().filter(value -> !value.isBlank()).map(String::trim).toList();
         }
 
@@ -2129,7 +2129,7 @@ public class KyraOrmProcessor extends AbstractProcessor {
 
         boolean sameConfiguration(ScanSpec other) {
             return configQualifiedName.equals(other.configQualifiedName)
-                    && entityPackages.equals(other.entityPackages)
+                    && tablePackages.equals(other.tablePackages)
                     && mapperPackages.equals(other.mapperPackages)
                     && xmlRoots.equals(other.xmlRoots);
         }
@@ -2137,9 +2137,9 @@ public class KyraOrmProcessor extends AbstractProcessor {
         ScanSpecIndexStore.ScanConfigMetadata metadata() {
             return new ScanSpecIndexStore.ScanConfigMetadata(
                     configQualifiedName,
-                    entityPackages,
+                    tablePackages,
                     mapperPackages,
-                    new ArrayList<>(entityTypeNames),
+                    new ArrayList<>(typeNames),
                     new ArrayList<>(mapperTypeNames)
             );
         }

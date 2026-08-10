@@ -5,7 +5,7 @@ import java.util.Objects;
 import java.util.ServiceLoader;
 
 /**
- * Registry of {@link Reflector} instances keyed by entity type.
+ * Registry of {@link Reflector} instances keyed by Java type.
  *
  * <p>Storage is an append-only, read-mostly structure. Instead of one or more
  * {@link java.util.Map}s (which allocate a node per entry and box integer

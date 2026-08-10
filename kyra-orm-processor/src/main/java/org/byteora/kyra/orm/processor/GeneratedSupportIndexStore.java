@@ -47,15 +47,15 @@ final class GeneratedSupportIndexStore {
                             skippedEntries++;
                             continue;
                         }
-                        if (!validator.isValid(entry.entityTypeName(), entry.generatedTypeName())) {
+                        if (!validator.isValid(entry.typeName(), entry.generatedTypeName())) {
                             skippedEntries++;
                             dirty = true;
                             continue;
                         }
                         if ("REFLECTOR".equals(entry.kind())) {
-                            reflectors.putIfAbsent(entry.entityTypeName(), new ReflectRegistration(entry.entityTypeName(), entry.generatedTypeName()));
+                            reflectors.putIfAbsent(entry.typeName(), new ReflectRegistration(entry.typeName(), entry.generatedTypeName()));
                         } else if ("TABLE".equals(entry.kind())) {
-                            tables.putIfAbsent(entry.entityTypeName(), new TableRegistration(entry.entityTypeName(), entry.generatedTypeName()));
+                            tables.putIfAbsent(entry.typeName(), new TableRegistration(entry.typeName(), entry.generatedTypeName()));
                         }
                     }
                     return;
@@ -65,8 +65,8 @@ final class GeneratedSupportIndexStore {
         }
     }
 
-    boolean upsertReflector(String entityTypeName, String reflectorTypeName) {
-        ReflectRegistration previous = reflectors.put(entityTypeName, new ReflectRegistration(entityTypeName, reflectorTypeName));
+    boolean upsertReflector(String typeName, String reflectorTypeName) {
+        ReflectRegistration previous = reflectors.put(typeName, new ReflectRegistration(typeName, reflectorTypeName));
         if (previous != null && previous.reflectorTypeName().equals(reflectorTypeName)) {
             return false;
         }
@@ -74,8 +74,8 @@ final class GeneratedSupportIndexStore {
         return true;
     }
 
-    boolean upsertTable(String entityTypeName, String tableTypeName) {
-        TableRegistration previous = tables.put(entityTypeName, new TableRegistration(entityTypeName, tableTypeName));
+    boolean upsertTable(String typeName, String tableTypeName) {
+        TableRegistration previous = tables.put(typeName, new TableRegistration(typeName, tableTypeName));
         if (previous != null && previous.tableTypeName().equals(tableTypeName)) {
             return false;
         }
@@ -114,14 +114,14 @@ final class GeneratedSupportIndexStore {
         try (Writer writer = fileObject.openWriter()) {
             for (ReflectRegistration reflector : reflectors.values()) {
                 writer.write("REFLECTOR|");
-                writer.write(reflector.entityTypeName());
+                writer.write(reflector.typeName());
                 writer.write('|');
                 writer.write(reflector.reflectorTypeName());
                 writer.write('\n');
             }
             for (TableRegistration table : tables.values()) {
                 writer.write("TABLE|");
-                writer.write(table.entityTypeName());
+                writer.write(table.typeName());
                 writer.write('|');
                 writer.write(table.tableTypeName());
                 writer.write('\n');
@@ -167,25 +167,25 @@ final class GeneratedSupportIndexStore {
             return null;
         }
         String kind = parts[0].trim();
-        String entityTypeName = parts[1].trim();
+        String typeName = parts[1].trim();
         String generatedTypeName = parts[2].trim();
-        if (kind.isEmpty() || entityTypeName.isEmpty() || generatedTypeName.isEmpty()) {
+        if (kind.isEmpty() || typeName.isEmpty() || generatedTypeName.isEmpty()) {
             return null;
         }
-        return new Entry(kind, entityTypeName, generatedTypeName);
+        return new Entry(kind, typeName, generatedTypeName);
     }
 
     @FunctionalInterface
     interface Validator {
-        boolean isValid(String entityTypeName, String generatedTypeName);
+        boolean isValid(String typeName, String generatedTypeName);
     }
 
-    private record Entry(String kind, String entityTypeName, String generatedTypeName) {
+    private record Entry(String kind, String typeName, String generatedTypeName) {
     }
 
-    record ReflectRegistration(String entityTypeName, String reflectorTypeName) {
+    record ReflectRegistration(String typeName, String reflectorTypeName) {
     }
 
-    record TableRegistration(String entityTypeName, String tableTypeName) {
+    record TableRegistration(String typeName, String tableTypeName) {
     }
 }

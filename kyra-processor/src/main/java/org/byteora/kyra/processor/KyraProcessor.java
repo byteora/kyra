@@ -2,6 +2,9 @@ package org.byteora.kyra.processor;
 
 import org.byteora.kyra.core.annotation.Reflect;
 import org.byteora.kyra.core.runtime.GeneratedNames;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -28,7 +31,6 @@ import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.io.Writer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -80,23 +82,23 @@ public class KyraProcessor extends AbstractProcessor {
             }
 
             @Override
-            public ReflectSpec reflectSpec(TypeElement entityType) {
-                return reflectSpecs.get(entityType.getQualifiedName().toString());
+            public ReflectSpec reflectSpec(TypeElement type) {
+                return reflectSpecs.get(type.getQualifiedName().toString());
             }
 
             @Override
-            public List<VariableElement> collectInstanceFields(TypeElement entityType) {
-                return KyraProcessor.this.collectInstanceFields(entityType);
+            public List<VariableElement> collectInstanceFields(TypeElement type) {
+                return KyraProcessor.this.collectInstanceFields(type);
             }
 
             @Override
-            public List<ExecutableElement> collectInvokableMethods(TypeElement entityType) {
-                return KyraProcessor.this.collectInvokableMethods(entityType);
+            public List<ExecutableElement> collectInvokableMethods(TypeElement type) {
+                return KyraProcessor.this.collectInvokableMethods(type);
             }
 
             @Override
-            public List<String> expandedFieldNames(TypeElement entityType) {
-                return KyraProcessor.this.expandedFieldNames(entityType);
+            public List<String> expandedFieldNames(TypeElement type) {
+                return KyraProcessor.this.expandedFieldNames(type);
             }
 
             @Override
@@ -105,8 +107,8 @@ public class KyraProcessor extends AbstractProcessor {
             }
 
             @Override
-            public TypeElement directSuperType(TypeElement entityType) {
-                return KyraProcessor.this.directSuperType(entityType);
+            public TypeElement directSuperType(TypeElement type) {
+                return KyraProcessor.this.directSuperType(type);
             }
 
             @Override
@@ -177,13 +179,13 @@ public class KyraProcessor extends AbstractProcessor {
         }
     }
 
-    private void writeReflectorClass(TypeElement entityType, String suffix) throws IOException {
-        String qualifiedName = reflectorTypeName(entityType, suffix);
-        JavaFileObject fileObject = filer.createClassFile(qualifiedName, entityType);
+    private void writeReflectorClass(TypeElement type, String suffix) throws IOException {
+        String qualifiedName = reflectorTypeName(type, suffix);
+        JavaFileObject fileObject = filer.createClassFile(qualifiedName, type);
         try (OutputStream outputStream = fileObject.openOutputStream()) {
-            outputStream.write(reflectorClassGenerator.buildReflectorClass(qualifiedName, entityType));
+            outputStream.write(reflectorClassGenerator.buildReflectorClass(qualifiedName, type));
         }
-        reflectorIndexStore.upsertReflector(entityType.getQualifiedName().toString(), qualifiedName);
+        reflectorIndexStore.upsertReflector(type.getQualifiedName().toString(), qualifiedName);
     }
 
     private void generateInstallerAndService() {
@@ -201,45 +203,69 @@ public class KyraProcessor extends AbstractProcessor {
     }
 
     private void writeReflectorInstaller(String installerTypeName) throws IOException {
-        JavaFileObject fileObject = filer.createSourceFile(installerTypeName,
+        JavaFileObject fileObject = filer.createClassFile(installerTypeName,
                 reflectSpecs.values().stream().map(ReflectSpec::typeElement).toArray(Element[]::new));
-        try (Writer writer = fileObject.openWriter()) {
-            writer.write(buildInstallerSource(installerTypeName, reflectorIndexStore.reflectors()));
+        try (OutputStream outputStream = fileObject.openOutputStream()) {
+            outputStream.write(buildReflectorInstallerClass(installerTypeName, reflectorIndexStore.reflectors()));
         }
     }
 
-    private String buildInstallerSource(String installerTypeName, List<ReflectorIndexStore.ReflectorRegistration> registrations) {
-        int separator = installerTypeName.lastIndexOf('.');
-        String packageName = separator < 0 ? "" : installerTypeName.substring(0, separator);
-        String simpleName = separator < 0 ? installerTypeName : installerTypeName.substring(separator + 1);
-        String packageBlock = packageName.isEmpty() ? "" : "package %s;%n%n".formatted(packageName);
-        StringBuilder installAll = new StringBuilder();
+    private byte[] buildReflectorInstallerClass(
+            String installerTypeName,
+            List<ReflectorIndexStore.ReflectorRegistration> registrations
+    ) {
+        String classInternalName = AsmUtils.internalName(installerTypeName);
+        ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
+        classWriter.visit(Opcodes.V21, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, classInternalName, null,
+                "java/lang/Object", new String[]{"org/byteora/kyra/core/runtime/ReflectorInstaller"});
+        writeNoArgConstructor(classWriter);
+        MethodVisitor methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC, "install", "()V", null, null);
+        methodVisitor.visitCode();
         for (ReflectorIndexStore.ReflectorRegistration registration : registrations) {
-            installAll.append(buildReflectorRegistration(registration.entityTypeName(), registration.reflectorTypeName()));
+            emitReflectorRegistration(methodVisitor, registration);
         }
-        return new StringBuilder()
-                .append(packageBlock)
-                .append("@SuppressWarnings({\"rawtypes\", \"unchecked\"})\n")
-                .append("public final class ").append(simpleName)
-                .append(" implements org.byteora.kyra.core.runtime.ReflectorInstaller {\n")
-                .append("    @Override\n")
-                .append("    public void install() {\n")
-                .append(installAll)
-                .append("    }\n")
-                .append("}\n")
-                .toString();
+        methodVisitor.visitInsn(Opcodes.RETURN);
+        methodVisitor.visitMaxs(0, 0);
+        methodVisitor.visitEnd();
+        classWriter.visitEnd();
+        return classWriter.toByteArray();
     }
 
-    private String buildReflectorRegistration(String entityTypeName, String reflectorTypeName) {
-        return "            org.byteora.kyra.core.runtime.ReflectorRegistry.register(%s.class, new %s());%n"
-                .formatted(entityTypeName, reflectorTypeName);
+    private void writeNoArgConstructor(ClassWriter classWriter) {
+        MethodVisitor methodVisitor = classWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+        methodVisitor.visitCode();
+        methodVisitor.visitVarInsn(Opcodes.ALOAD, 0);
+        methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        methodVisitor.visitInsn(Opcodes.RETURN);
+        methodVisitor.visitMaxs(0, 0);
+        methodVisitor.visitEnd();
+    }
+
+    private void emitReflectorRegistration(
+            MethodVisitor methodVisitor,
+            ReflectorIndexStore.ReflectorRegistration registration
+    ) {
+        TypeElement type = elements.getTypeElement(registration.typeName());
+        String typeInternalName = type == null
+                ? AsmUtils.internalName(registration.typeName())
+                : AsmUtils.internalName(type);
+        methodVisitor.visitLdcInsn(org.objectweb.asm.Type.getObjectType(typeInternalName));
+        String reflectorInternalName = AsmUtils.internalName(registration.reflectorTypeName());
+        methodVisitor.visitTypeInsn(Opcodes.NEW, reflectorInternalName);
+        methodVisitor.visitInsn(Opcodes.DUP);
+        methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL, reflectorInternalName, "<init>", "()V", false);
+        methodVisitor.visitMethodInsn(Opcodes.INVOKESTATIC,
+                "org/byteora/kyra/core/runtime/ReflectorRegistry",
+                "register",
+                "(Ljava/lang/Class;Lorg/byteora/kyra/core/runtime/Reflector;)V",
+                false);
     }
 
     private String aggregateReflectorInstallerTypeName() {
         String moduleName = moduleNameOption;
         if (moduleName == null) {
             moduleName = reflectorIndexStore.reflectors().stream()
-                    .map(registration -> packageNameOf(registration.entityTypeName()))
+                    .map(registration -> packageNameOf(registration.typeName()))
                     .filter(packageName -> !packageName.isBlank())
                     .findFirst()
                     .orElse("kyra");
@@ -276,26 +302,26 @@ public class KyraProcessor extends AbstractProcessor {
         return result.toString();
     }
 
-    private List<String> expandedFieldNames(TypeElement entityType) {
+    private List<String> expandedFieldNames(TypeElement type) {
         LinkedHashSet<String> names = new LinkedHashSet<>();
-        for (VariableElement field : collectInstanceFields(entityType)) {
+        for (VariableElement field : collectInstanceFields(type)) {
             names.add(field.getSimpleName().toString());
         }
-        TypeElement superType = directSuperType(entityType);
+        TypeElement superType = directSuperType(type);
         if (superType != null && !isJavaLangObject(superType) && reflectSpecs.containsKey(superType.getQualifiedName().toString())) {
             names.addAll(expandedFieldNames(superType));
         }
         return new ArrayList<>(names);
     }
 
-    private List<VariableElement> collectInstanceFields(TypeElement entityType) {
-        String qualifiedName = entityType.getQualifiedName().toString();
+    private List<VariableElement> collectInstanceFields(TypeElement type) {
+        String qualifiedName = type.getQualifiedName().toString();
         List<VariableElement> cached = instanceFieldsCache.get(qualifiedName);
         if (cached != null) {
             return cached;
         }
         List<VariableElement> fields = new ArrayList<>();
-        for (Element enclosedElement : entityType.getEnclosedElements()) {
+        for (Element enclosedElement : type.getEnclosedElements()) {
             if (enclosedElement.getKind() == ElementKind.FIELD && !enclosedElement.getModifiers().contains(Modifier.STATIC)) {
                 VariableElement field = (VariableElement) enclosedElement;
                 if (!isIgnoredGeneratedField(field)) {
@@ -308,9 +334,9 @@ public class KyraProcessor extends AbstractProcessor {
         return result;
     }
 
-    private List<ExecutableElement> collectInvokableMethods(TypeElement entityType) {
+    private List<ExecutableElement> collectInvokableMethods(TypeElement type) {
         List<ExecutableElement> methods = new ArrayList<>();
-        for (Element enclosedElement : entityType.getEnclosedElements()) {
+        for (Element enclosedElement : type.getEnclosedElements()) {
             if (enclosedElement.getKind() == ElementKind.METHOD
                     && !enclosedElement.getModifiers().contains(Modifier.STATIC)
                     && enclosedElement.getModifiers().contains(Modifier.PUBLIC)) {
@@ -381,8 +407,8 @@ public class KyraProcessor extends AbstractProcessor {
                 && parameters.getFirst().asType().toString().equals(Object.class.getCanonicalName());
     }
 
-    private TypeElement directSuperType(TypeElement entityType) {
-        TypeMirror superType = entityType.getSuperclass();
+    private TypeElement directSuperType(TypeElement type) {
+        TypeMirror superType = type.getSuperclass();
         return superType.getKind() == TypeKind.NONE ? null : asTypeElement(superType);
     }
 
@@ -413,9 +439,9 @@ public class KyraProcessor extends AbstractProcessor {
         return GeneratedNames.packageName(packageNameOf(typeElement));
     }
 
-    private String reflectorTypeName(TypeElement entityType, String suffix) {
-        return generatedModelPackageName(entityType) + "."
-                + GeneratedNames.simpleName(enclosingSimpleNames(entityType), entityType.getSimpleName().toString(), suffix);
+    private String reflectorTypeName(TypeElement type, String suffix) {
+        return generatedModelPackageName(type) + "."
+                + GeneratedNames.simpleName(enclosingSimpleNames(type), type.getSimpleName().toString(), suffix);
     }
 
     private List<String> enclosingSimpleNames(TypeElement typeElement) {
@@ -433,11 +459,11 @@ public class KyraProcessor extends AbstractProcessor {
             return;
         }
         persistedReflectorIndexLoaded = true;
-        // Retain entries we cannot resolve in this round (entityType == null).
+        // Retain entries we cannot resolve in this round (type == null).
         // Under IDEA JPS incremental compilation only the changed sources are
         // in the current round, so unrelated entities may not resolve. Pruning
         // them here would shrink the index one-way and drop installer entries.
-        reflectorIndexStore.load((entityTypeName, reflectorTypeName) ->
+        reflectorIndexStore.load((typeName, reflectorTypeName) ->
                 reflectorTypeName != null && !reflectorTypeName.isBlank());
     }
 

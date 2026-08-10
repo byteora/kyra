@@ -1,6 +1,6 @@
 package org.byteora.kyra.orm.runtime;
 
-import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Table;
 import org.byteora.kyra.orm.query.QueryDefinition;
 import org.byteora.kyra.orm.query.UpdateDefinition;
 import org.byteora.kyra.orm.query.WhereDefinition;
@@ -38,7 +38,7 @@ public class DefaultSqlGenerator implements SqlGenerator {
     }
 
     @Override
-    public SqlRequest renderSelect(EntityTable<?> table, WhereDefinition whereDefinition, DbType dbType) {
+    public SqlRequest renderSelect(Table<?> table, WhereDefinition whereDefinition, DbType dbType) {
         QueryDefinition definition = new QueryDefinition(
                 java.util.List.of(),
                 true,
@@ -52,19 +52,19 @@ public class DefaultSqlGenerator implements SqlGenerator {
     }
 
     @Override
-    public SqlRequest renderDelete(EntityTable<?> table, WhereDefinition whereDefinition, DbType dbType) {
+    public SqlRequest renderDelete(Table<?> table, WhereDefinition whereDefinition, DbType dbType) {
         SqlDialect dialect = dialectRegistry.require(dbType);
         return dialect.deleteRenderer().render(new DeleteModel(table, whereDefinition), new RenderContext(dialect));
     }
 
     @Override
-    public SqlRequest renderUpdate(EntityTable<?> table, UpdateDefinition updateDefinition, DbType dbType) {
+    public SqlRequest renderUpdate(Table<?> table, UpdateDefinition updateDefinition, DbType dbType) {
         SqlDialect dialect = dialectRegistry.require(dbType);
         return dialect.updateRenderer().render(new UpdateModel(table, updateDefinition), new RenderContext(dialect));
     }
 
     @Override
-    public SqlRequest renderInsert(EntityTable<?> table, List<String> columns, List<Object> args, DbType dbType) {
+    public SqlRequest renderInsert(Table<?> table, List<String> columns, List<Object> args, DbType dbType) {
         SqlDialect dialect = dialectRegistry.require(dbType);
         return dialect.insertRenderer().render(
                 new org.byteora.kyra.orm.runtime.dialect.InsertModel(table, columns, args),

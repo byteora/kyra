@@ -1,6 +1,6 @@
 package org.byteora.kyra.orm.runtime;
 
-import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Table;
 
 import java.util.UUID;
 
@@ -11,17 +11,17 @@ public final class DefaultIdGenerator implements IdGenerator {
     }
 
     @Override
-    public Object generate(SqlExecutor sqlExecutor, EntityTable<?> entityTable, Object entity) {
-        return switch (entityTable.idStrategy()) {
+    public Object generate(SqlExecutor sqlExecutor, Table<?> table, Object entity) {
+        return switch (table.idStrategy()) {
             case NONE -> null;
-            case UUID -> generateUuid(entityTable);
-            case CUSTOM -> generateCustom(sqlExecutor, entityTable, entity);
+            case UUID -> generateUuid(table);
+            case CUSTOM -> generateCustom(sqlExecutor, table, entity);
         };
     }
 
-    private Object generateUuid(EntityTable<?> entityTable) {
+    private Object generateUuid(Table<?> table) {
         UUID uuid = UUID.randomUUID();
-        Class<?> javaType = entityTable.idColumn().javaType();
+        Class<?> javaType = table.idColumn().javaType();
         if (javaType == UUID.class) {
             return uuid;
         }
@@ -29,18 +29,18 @@ public final class DefaultIdGenerator implements IdGenerator {
             return uuid.toString();
         }
         throw new SqlExecutorException("UUID id strategy only supports String or UUID fields: "
-                + entityTable.entityType().getName() + "." + entityTable.fieldName(entityTable.idColumn().columnName()));
+                + table.type().getName() + "." + table.fieldName(table.idColumn().columnName()));
     }
 
-    private Object generateCustom(SqlExecutor sqlExecutor, EntityTable<?> entityTable, Object entity) {
-        IdGenerator generator = entityTable.idGenerator();
+    private Object generateCustom(SqlExecutor sqlExecutor, Table<?> table, Object entity) {
+        IdGenerator generator = table.idGenerator();
         if (generator != null) {
-            return generator.generate(sqlExecutor, entityTable, entity);
+            return generator.generate(sqlExecutor, table, entity);
         }
         IdGenerator executorGenerator = sqlExecutor.getIdGenerator();
         if (executorGenerator != null) {
-            return executorGenerator.generate(sqlExecutor, entityTable, entity);
+            return executorGenerator.generate(sqlExecutor, table, entity);
         }
-        throw new SqlExecutorException("No custom id generator configured for entity: " + entityTable.entityType().getName());
+        throw new SqlExecutorException("No custom id generator configured for type: " + table.type().getName());
     }
 }

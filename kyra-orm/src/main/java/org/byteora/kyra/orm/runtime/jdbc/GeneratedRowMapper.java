@@ -24,11 +24,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * Reflective {@link RowMapper} backed by a {@link Reflector}.
  *
  * <p>The first row establishes a {@link ColumnPlan column plan} that resolves each ResultSet column
- * to an entity field binding (constructor arg or setter slot). Subsequent rows reuse the plan and
+ * to a type field binding (constructor arg or setter slot). Subsequent rows reuse the plan and
  * a pair of preallocated buffers, so mapping cost is dominated by JDBC reads and field writes.
  *
  * <p>Both plain POJOs (no-arg constructor + setters), Java records (all-args constructor), and
- * hybrid entities (partial constructor + remaining setters) are supported.
+ * hybrid types (partial constructor + remaining setters) are supported.
  *
  * <p><b>Thread-safety:</b> instances are <i>not</i> thread-safe. Reuse within a single thread for
  * the duration of one result-set iteration.
@@ -38,38 +38,38 @@ public final class GeneratedRowMapper<T> implements RowMapper<T> {
     private enum Strategy { SETTERS_ONLY, CONSTRUCTOR_ONLY, CONSTRUCTOR_WITH_SETTERS }
 
     private static final int[] NO_SLOTS = new int[0];
-    private static final Map<MappingCacheKey, EntityMappingPlan> ENTITY_PLANS = new ConcurrentHashMap<>();
+    private static final Map<MappingCacheKey, MappingPlan> MAPPING_PLANS = new ConcurrentHashMap<>();
 
     private final Reflector<T> reflector;
     private final TypeConverter typeConverter;
-    private final EntityMappingPlan mapping;
+    private final MappingPlan mapping;
     private final Object[] constructorBuffer; // reused across rows (null if no constructor)
     private final Object[] setterBuffer;      // reused across rows (null if no mixed setters)
 
     private volatile ColumnPlan plan;
 
-    public GeneratedRowMapper(Class<T> entityType, Reflector<T> reflector, TypeConverter typeConverter) {
-        this(entityType, entityType, reflector, typeConverter);
+    public GeneratedRowMapper(Class<T> type, Reflector<T> reflector, TypeConverter typeConverter) {
+        this(type, type, reflector, typeConverter);
     }
 
-    public GeneratedRowMapper(Class<T> entityType, Type genericEntityType, Reflector<T> reflector, TypeConverter typeConverter) {
-        Objects.requireNonNull(entityType, "entityType");
-        Type effectiveEntityType = genericEntityType == null ? entityType : genericEntityType;
+    public GeneratedRowMapper(Class<T> type, Type genericType, Reflector<T> reflector, TypeConverter typeConverter) {
+        Objects.requireNonNull(type, "type");
+        Type effectiveType = genericType == null ? type : genericType;
         this.reflector = Objects.requireNonNull(reflector, "reflector");
         this.typeConverter = Objects.requireNonNull(typeConverter, "typeConverter");
 
-        MappingCacheKey cacheKey = new MappingCacheKey(effectiveEntityType, reflector.getClass());
-        this.mapping = ENTITY_PLANS.computeIfAbsent(cacheKey, ignored -> buildEntityMappingPlan(entityType, effectiveEntityType, reflector));
+        MappingCacheKey cacheKey = new MappingCacheKey(effectiveType, reflector.getClass());
+        this.mapping = MAPPING_PLANS.computeIfAbsent(cacheKey, ignored -> buildMappingPlan(type, effectiveType, reflector));
         this.constructorBuffer = mapping.usesConstructor() ? new Object[mapping.constructorDefaults.length] : null;
         this.setterBuffer = mapping.strategy == Strategy.CONSTRUCTOR_WITH_SETTERS ? new Object[mapping.setterFieldIndex.length] : null;
     }
 
-    private static EntityMappingPlan buildEntityMappingPlan(Class<?> entityType, Type genericEntityType, Reflector<?> reflector) {
-        ParameterInfo[] constructorParams = resolveConstructorParams(reflector, entityType);
-        Map<String, Type> typeVariables = resolveTypeVariables(entityType, genericEntityType);
+    private static MappingPlan buildMappingPlan(Class<?> type, Type genericType, Reflector<?> reflector) {
+        ParameterInfo[] constructorParams = resolveConstructorParams(reflector, type);
+        Map<String, Type> typeVariables = resolveTypeVariables(type, genericType);
         Object[] constructorDefaults = buildConstructorDefaults(constructorParams, typeVariables);
 
-        FieldBinding[] bindings = buildFieldBindings(reflector, constructorParams, entityType.isRecord(), typeVariables);
+        FieldBinding[] bindings = buildFieldBindings(reflector, constructorParams, type.isRecord(), typeVariables);
         Map<String, FieldBinding> fieldByKey = buildFieldIndex(bindings, reflector);
 
         int setterCount = countSetterSlots(bindings);
@@ -78,7 +78,7 @@ public final class GeneratedRowMapper<T> implements RowMapper<T> {
         boolean useConstructor = constructorParams.length > 0;
         boolean hasSetters = setterCount > 0;
         Strategy strategy = selectStrategy(useConstructor, hasSetters);
-        return new EntityMappingPlan(strategy, fieldByKey, setterFieldIndex, constructorDefaults);
+        return new MappingPlan(strategy, fieldByKey, setterFieldIndex, constructorDefaults);
     }
 
     @Override
@@ -198,10 +198,10 @@ public final class GeneratedRowMapper<T> implements RowMapper<T> {
         return hasSetters ? Strategy.CONSTRUCTOR_WITH_SETTERS : Strategy.CONSTRUCTOR_ONLY;
     }
 
-    private static ParameterInfo[] resolveConstructorParams(Reflector<?> reflector, Class<?> entityType) {
+    private static ParameterInfo[] resolveConstructorParams(Reflector<?> reflector, Class<?> type) {
         ParameterInfo[] params = reflector.getClassInfo() == null ? null : reflector.getClassInfo().params();
-        if (entityType.isRecord() && (params == null || params.length == 0)) {
-            throw new SqlExecutorException("No constructor metadata available for record type: " + entityType.getName());
+        if (type.isRecord() && (params == null || params.length == 0)) {
+            throw new SqlExecutorException("No constructor metadata available for record type: " + type.getName());
         }
         return params == null ? new ParameterInfo[0] : params;
     }
@@ -390,14 +390,14 @@ public final class GeneratedRowMapper<T> implements RowMapper<T> {
 
     // ==================== value records ====================
 
-    private record MappingCacheKey(Type entityType,
+    private record MappingCacheKey(Type type,
                                    Class<?> reflectorType) {
     }
 
-    private record EntityMappingPlan(Strategy strategy,
-                                     Map<String, FieldBinding> fieldByKey,
-                                     int[] setterFieldIndex,
-                                     Object[] constructorDefaults) {
+    private record MappingPlan(Strategy strategy,
+                               Map<String, FieldBinding> fieldByKey,
+                               int[] setterFieldIndex,
+                               Object[] constructorDefaults) {
         private boolean usesConstructor() {
             return strategy != Strategy.SETTERS_ONLY;
         }

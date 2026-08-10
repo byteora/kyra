@@ -1,6 +1,6 @@
 package org.byteora.kyra.orm.runtime.dialect.impl;
 
-import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Table;
 import org.byteora.kyra.orm.runtime.SqlRequest;
 import org.byteora.kyra.orm.runtime.dialect.GroupByItem;
 import org.byteora.kyra.orm.runtime.dialect.HavingClause;
@@ -58,7 +58,7 @@ public final class QueryDefinitionRenderer implements QueryRenderer {
         return context.toRequest();
     }
 
-    static void configureSingleTableQualification(EntityTable<?> table, RenderContext context) {
+    static void configureSingleTableQualification(Table<?> table, RenderContext context) {
         context.clearColumnQualifiers();
         if (table.alias() != null && !table.alias().isBlank()) {
             context.qualify(table, table.alias());
@@ -69,7 +69,7 @@ public final class QueryDefinitionRenderer implements QueryRenderer {
 
     private static void configureColumnQualification(QueryModel queryModel, RenderContext context) {
         context.clearColumnQualifiers();
-        EntityTable<?> from = queryModel.definition().from();
+        Table<?> from = queryModel.definition().from();
         boolean qualifyAll = !queryModel.joinItems().isEmpty();
         if (qualifyAll || hasAlias(from)) {
             context.qualify(from, from.qualifier());
@@ -79,7 +79,7 @@ public final class QueryDefinitionRenderer implements QueryRenderer {
         }
     }
 
-    private static void appendSelectAll(EntityTable<?> table, List<JoinItem> joinItems, RenderContext context) {
+    private static void appendSelectAll(Table<?> table, List<JoinItem> joinItems, RenderContext context) {
         String qualifier = !joinItems.isEmpty() || hasAlias(table) ? context.dialect().identifiers().quote(table.qualifier()) : null;
         if (qualifier == null || qualifier.isBlank()) {
             context.sql().append('*');
@@ -88,7 +88,7 @@ public final class QueryDefinitionRenderer implements QueryRenderer {
         context.sql().append(qualifier).append(".*");
     }
 
-    private static boolean hasAlias(EntityTable<?> table) {
+    private static boolean hasAlias(Table<?> table) {
         return table.alias() != null && !table.alias().isBlank();
     }
 

@@ -1,6 +1,6 @@
 package org.byteora.kyra.orm.runtime.dialect;
 
-import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Table;
 import org.byteora.kyra.orm.runtime.DbType;
 import org.byteora.kyra.orm.runtime.SqlRequest;
 
@@ -13,7 +13,7 @@ public final class RenderContext {
     private final SqlDialect dialect;
     private final StringBuilder sql;
     private final List<Object> args;
-    private final Map<EntityTable<?>, String> columnQualifiers;
+    private final Map<Table<?>, String> columnQualifiers;
 
     public RenderContext(SqlDialect dialect) {
         this(dialect, new StringBuilder(), new ArrayList<>(), new IdentityHashMap<>());
@@ -23,7 +23,7 @@ public final class RenderContext {
         this(dialect, sql, args, new IdentityHashMap<>());
     }
 
-    public RenderContext(SqlDialect dialect, StringBuilder sql, List<Object> args, Map<EntityTable<?>, String> columnQualifiers) {
+    public RenderContext(SqlDialect dialect, StringBuilder sql, List<Object> args, Map<Table<?>, String> columnQualifiers) {
         this.dialect = dialect;
         this.sql = sql;
         this.args = args;
@@ -50,7 +50,7 @@ public final class RenderContext {
         columnQualifiers.clear();
     }
 
-    public void qualify(EntityTable<?> table, String qualifier) {
+    public void qualify(Table<?> table, String qualifier) {
         if (qualifier == null || qualifier.isBlank()) {
             columnQualifiers.remove(table);
             return;
@@ -58,7 +58,7 @@ public final class RenderContext {
         columnQualifiers.put(table, qualifier);
     }
 
-    public String columnQualifier(EntityTable<?> table) {
+    public String columnQualifier(Table<?> table) {
         return columnQualifiers.get(table);
     }
 

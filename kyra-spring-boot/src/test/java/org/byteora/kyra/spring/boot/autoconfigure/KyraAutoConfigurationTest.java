@@ -329,7 +329,7 @@ public class KyraAutoConfigurationTest {
         }
     }
 
-    static final class TxRowTable extends org.byteora.kyra.orm.query.EntityTable<TxRow> {
+    static final class TxRowTable extends org.byteora.kyra.orm.query.Table<TxRow> {
         static final TxRowTable TX_DEMO = new TxRowTable();
 
         final org.byteora.kyra.orm.query.Column<TxRow, Long> id = column("id", Long.class);

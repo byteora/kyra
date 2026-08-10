@@ -5,7 +5,7 @@ import java.util.List;
 public record QueryDefinition(
         List<SqlExpression> selectExpressions,
         boolean selectAll,
-        EntityTable<?> from,
+        Table<?> from,
         List<QueryJoin> joins,
         List<SqlExpression> groupByExpressions,
         Condition having,

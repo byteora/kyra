@@ -17,7 +17,7 @@ import com.example.simple.support.NoopSqlExecutor;
 import org.byteora.kyra.core.TypeRef;
 import org.byteora.kyra.orm.runtime.AbstractMapper;
 import org.byteora.kyra.core.runtime.AnnotationMeta;
-import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Table;
 import org.byteora.kyra.orm.query.Expressions;
 import org.byteora.kyra.orm.query.Wrapper;
 import org.byteora.kyra.orm.runtime.DbType;
@@ -52,7 +52,7 @@ class MapperFeaturesTest {
         }
 
         @Test
-        void rawMultiGenericCapabilityShouldFallbackToNullEntityClass() {
+        void rawMultiGenericCapabilityShouldFallbackToNullType() {
             RawMultiTypeUserMapper mapper = new RawMultiTypeUserMapperImpl(new NoopSqlExecutor());
 
             assertNotNull(mapper);
@@ -149,7 +149,7 @@ class MapperFeaturesTest {
             assertInstanceOf(String.class, results.get(0).key());
             assertInstanceOf(Long.class, results.get(0).value());
 
-            EntityTable<User> users = new EntityTable<>(User.class, "users") {
+            Table<User> users = new Table<>(User.class, "users") {
                 @Override
                 public org.byteora.kyra.orm.query.Column<User, ?> idColumn() {
                     return null;

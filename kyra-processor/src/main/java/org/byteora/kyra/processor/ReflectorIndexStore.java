@@ -38,11 +38,11 @@ final class ReflectorIndexStore {
                         if (registration == null) {
                             continue;
                         }
-                        if (!validator.isValid(registration.entityTypeName(), registration.reflectorTypeName())) {
+                        if (!validator.isValid(registration.typeName(), registration.reflectorTypeName())) {
                             dirty = true;
                             continue;
                         }
-                        reflectors.putIfAbsent(registration.entityTypeName(), registration);
+                        reflectors.putIfAbsent(registration.typeName(), registration);
                     }
                     return;
                 }
@@ -51,9 +51,9 @@ final class ReflectorIndexStore {
         }
     }
 
-    boolean upsertReflector(String entityTypeName, String reflectorTypeName) {
-        ReflectorRegistration previous = reflectors.put(entityTypeName,
-                new ReflectorRegistration(entityTypeName, reflectorTypeName));
+    boolean upsertReflector(String typeName, String reflectorTypeName) {
+        ReflectorRegistration previous = reflectors.put(typeName,
+                new ReflectorRegistration(typeName, reflectorTypeName));
         if (previous != null && previous.reflectorTypeName().equals(reflectorTypeName)) {
             return false;
         }
@@ -73,7 +73,7 @@ final class ReflectorIndexStore {
         try (Writer writer = fileObject.openWriter()) {
             for (ReflectorRegistration reflector : reflectors.values()) {
                 writer.write("REFLECTOR|");
-                writer.write(reflector.entityTypeName());
+                writer.write(reflector.typeName());
                 writer.write('|');
                 writer.write(reflector.reflectorTypeName());
                 writer.write('\n');
@@ -103,19 +103,19 @@ final class ReflectorIndexStore {
             return null;
         }
         String kind = parts[0].trim();
-        String entityTypeName = parts[1].trim();
+        String typeName = parts[1].trim();
         String reflectorTypeName = parts[2].trim();
-        if (!"REFLECTOR".equals(kind) || entityTypeName.isEmpty() || reflectorTypeName.isEmpty()) {
+        if (!"REFLECTOR".equals(kind) || typeName.isEmpty() || reflectorTypeName.isEmpty()) {
             return null;
         }
-        return new ReflectorRegistration(entityTypeName, reflectorTypeName);
+        return new ReflectorRegistration(typeName, reflectorTypeName);
     }
 
     @FunctionalInterface
     interface Validator {
-        boolean isValid(String entityTypeName, String reflectorTypeName);
+        boolean isValid(String typeName, String reflectorTypeName);
     }
 
-    record ReflectorRegistration(String entityTypeName, String reflectorTypeName) {
+    record ReflectorRegistration(String typeName, String reflectorTypeName) {
     }
 }

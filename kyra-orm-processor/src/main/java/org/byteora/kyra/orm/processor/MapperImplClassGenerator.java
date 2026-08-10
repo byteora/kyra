@@ -123,16 +123,16 @@ final class MapperImplClassGenerator {
             switch (delegate.constructorMode()) {
                 case SQL_EXECUTOR -> mv.visitMethodInsn(Opcodes.INVOKESPECIAL, AsmUtils.internalName(delegate.implTypeName()), "<init>",
                         "(" + SQL_EXECUTOR_DESC + ")V", false);
-                case SQL_EXECUTOR_AND_ENTITY_CLASS -> {
-                    if (delegate.entityTypeName() == null) {
+                case SQL_EXECUTOR_AND_TYPE_CLASS -> {
+                    if (delegate.typeName() == null) {
                         mv.visitInsn(Opcodes.ACONST_NULL);
                     } else {
-                        mv.visitLdcInsn(org.objectweb.asm.Type.getType(AsmUtils.descriptor(delegate.entityTypeName())));
+                        mv.visitLdcInsn(org.objectweb.asm.Type.getType(AsmUtils.descriptor(delegate.typeName())));
                     }
                     mv.visitMethodInsn(Opcodes.INVOKESPECIAL, AsmUtils.internalName(delegate.implTypeName()), "<init>",
                             "(" + SQL_EXECUTOR_DESC + "Ljava/lang/Class;)V", false);
                 }
-                case SQL_EXECUTOR_AND_ENTITY_TABLE -> {
+                case SQL_EXECUTOR_AND_TABLE -> {
                     if (delegate.tableTypeName() == null) {
                         mv.visitInsn(Opcodes.ACONST_NULL);
                     } else {
@@ -140,7 +140,7 @@ final class MapperImplClassGenerator {
                                 "L" + AsmUtils.internalName(delegate.tableTypeName()) + ";");
                     }
                     mv.visitMethodInsn(Opcodes.INVOKESPECIAL, AsmUtils.internalName(delegate.implTypeName()), "<init>",
-                            "(" + SQL_EXECUTOR_DESC + "Lorg/byteora/kyra/orm/query/EntityTable;)V", false);
+                            "(" + SQL_EXECUTOR_DESC + "Lorg/byteora/kyra/orm/query/Table;)V", false);
                 }
             }
             mv.visitFieldInsn(Opcodes.PUTFIELD, classInternalName, delegate.fieldName(), AsmUtils.descriptor(delegate.interfaceErasedTypeLiteral()));

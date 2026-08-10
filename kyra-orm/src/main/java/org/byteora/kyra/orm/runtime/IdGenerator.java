@@ -1,7 +1,7 @@
 package org.byteora.kyra.orm.runtime;
 
-import org.byteora.kyra.orm.query.EntityTable;
+import org.byteora.kyra.orm.query.Table;
 
 public interface IdGenerator {
-    Object generate(SqlExecutor sqlExecutor, EntityTable<?> entityTable, Object entity);
+    Object generate(SqlExecutor sqlExecutor, Table<?> table, Object entity);
 }

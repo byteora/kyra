@@ -9,17 +9,17 @@ public final class GeneratedTypeNames {
     private GeneratedTypeNames() {
     }
 
-    public static String reflectorTypeName(Class<?> entityType) {
-        return generatedTypeName(entityType, "Reflector");
+    public static String reflectorTypeName(Class<?> type) {
+        return generatedTypeName(type, "Reflector");
     }
 
-    public static String tableTypeName(Class<?> entityType) {
-        return generatedTypeName(entityType, "Table");
+    public static String tableTypeName(Class<?> type) {
+        return generatedTypeName(type, "Table");
     }
 
-    private static String generatedTypeName(Class<?> entityType, String suffix) {
-        return GeneratedNames.qualifiedName(packageName(entityType), enclosingSimpleNames(entityType),
-                entityType.getSimpleName(), suffix);
+    private static String generatedTypeName(Class<?> type, String suffix) {
+        return GeneratedNames.qualifiedName(packageName(type), enclosingSimpleNames(type),
+                type.getSimpleName(), suffix);
     }
 
     private static List<String> enclosingSimpleNames(Class<?> type) {

@@ -15,7 +15,7 @@ import org.byteora.kyra.orm.annotation.KyraScan;
  * Compile with {@code -Akyra.mapper=.../src/main/resources/mapper} so the annotation processor can locate XML.
  */
 @KyraScan(
-        entity = {"com.example.simple.entity"},
+        tables = {"com.example.simple.entity"},
         mapper = {"com.example.simple.mapper"}
 )
 public class KyraSimpleConfig {
