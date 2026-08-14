@@ -3,6 +3,7 @@ package org.byteora.kyra.quarkus.runtime;
 import org.byteora.kyra.orm.query.DSLContext;
 import org.byteora.kyra.orm.runtime.DefaultSqlGenerator;
 import org.byteora.kyra.orm.runtime.DefaultSqlPagingSupport;
+import org.byteora.kyra.orm.runtime.IdGenerator;
 import org.byteora.kyra.orm.runtime.SqlExecutor;
 import org.byteora.kyra.orm.runtime.SqlGenerator;
 import org.byteora.kyra.orm.runtime.SqlInterceptor;
@@ -55,7 +56,8 @@ public class KyraQuarkusProducer {
                                    Instance<TypeConverter> typeConverter,
                                    Instance<SqlPagingSupport> sqlPagingSupport,
                                    Instance<SqlGenerator> sqlGenerator,
-                                   Instance<SqlInterceptor> interceptors) {
+                                   Instance<SqlInterceptor> interceptors,
+                                   Instance<IdGenerator> idGenerator) {
         if (!dataSource.isResolvable()) {
             throw new IllegalStateException("No DataSource bean is available for Kyra SqlExecutor");
         }
@@ -71,6 +73,9 @@ public class KyraQuarkusProducer {
         }
         for (SqlInterceptor interceptor : interceptors) {
             sqlExecutor.addInterceptor(interceptor);
+        }
+        if (idGenerator.isResolvable()) {
+            sqlExecutor.setIdGenerator(idGenerator.get());
         }
         return sqlExecutor;
     }

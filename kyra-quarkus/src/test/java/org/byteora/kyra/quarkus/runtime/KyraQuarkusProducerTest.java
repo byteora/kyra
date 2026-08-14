@@ -3,6 +3,7 @@ package org.byteora.kyra.quarkus.runtime;
 import org.byteora.kyra.orm.query.DSLContext;
 import org.byteora.kyra.orm.runtime.DefaultSqlGenerator;
 import org.byteora.kyra.orm.runtime.DefaultSqlPagingSupport;
+import org.byteora.kyra.orm.runtime.IdGenerator;
 import org.byteora.kyra.orm.runtime.SqlExecutor;
 import org.byteora.kyra.orm.runtime.SqlGenerator;
 import org.byteora.kyra.orm.runtime.SqlInterceptor;
@@ -44,13 +45,15 @@ class KyraQuarkusProducerTest {
         SqlPagingSupport pagingSupport = new DefaultSqlPagingSupport();
         SqlGenerator sqlGenerator = new DefaultSqlGenerator();
         SqlInterceptor interceptor = (context, request) -> request;
+        IdGenerator idGenerator = (sqlExecutor, table, entity) -> 1L;
 
         SqlExecutor sqlExecutor = producer.sqlExecutor(
                 new TestInstance<>(new NoopDataSource()),
                 new TestInstance<>(typeConverter),
                 new TestInstance<>(pagingSupport),
                 new TestInstance<>(sqlGenerator),
-                new TestInstance<>(List.of(interceptor))
+                new TestInstance<>(List.of(interceptor)),
+                new TestInstance<>(idGenerator)
         );
 
         QuarkusSqlExecutor executor = assertInstanceOf(QuarkusSqlExecutor.class, sqlExecutor);
@@ -58,6 +61,7 @@ class KyraQuarkusProducerTest {
         assertSame(pagingSupport, executor.getSqlPagingSupport());
         assertSame(sqlGenerator, executor.getSqlGenerator());
         assertEquals(List.of(interceptor), executor.getInterceptors());
+        assertSame(idGenerator, executor.getIdGenerator());
     }
 
     @Test
@@ -68,6 +72,7 @@ class KyraQuarkusProducerTest {
                 new TestInstance<>(new TypeConverter()),
                 new TestInstance<>(new DefaultSqlPagingSupport()),
                 new TestInstance<>(new DefaultSqlGenerator()),
+                new TestInstance<>(List.of()),
                 new TestInstance<>(List.of())
         );
 
